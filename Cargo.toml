@@ -36,13 +36,5 @@ directories = "5"
 hex = "0.4"
 reqwest = { version = "0.11", features = ["json"] }
 
-[[bin]]
-name = "agent-reach"
-path = "src/main.rs"
-
-[[bin]]
-name = "agent-reach-cli"
-path = "src/bin/agent-reach-cli.rs"
-
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }
