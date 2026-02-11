@@ -129,7 +129,7 @@ impl ReachMcpServer {
 
         // Step 2: Create and send Proof
         let my_did = self.key.did();
-        let proof = sign_proof(&challenge, &my_did, &self.key, None)
+        let proof = sign_proof(&challenge, &my_did, &self.key, Some(challenge.issuer.clone()))
             .map_err(|e| format!("Failed to create proof: {}", e))?;
 
         let resp = self.client
