@@ -1,6 +1,13 @@
-//! CLI client commands for interacting with agent-reach servers.
+//! agent-reach CLI - interact with agent-reach registry servers
+//!
+//! Usage:
+//!   agent-reach auth <server>                     # Handshake, output session
+//!   agent-reach register <server> -e <endpoint>   # Register endpoint
+//!   agent-reach lookup <server> <did>             # Look up agent by DID
+//!   agent-reach deregister <server>               # Remove registration
 
 use anyhow::{Context, Result};
+use clap::{Parser, Subcommand};
 use reqwest::Client;
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -12,26 +19,58 @@ use agent_id_handshake::{
     Challenge,
 };
 
-/// Load identity from file (same format as agent-id CLI)
-fn load_identity(path: Option<PathBuf>) -> Result<RootKey> {
-    let path = match path {
-        Some(p) => p,
-        None => {
-            let proj_dirs = directories::ProjectDirs::from("ai", "agent-id", "agent-id")
-                .context("Could not determine config directory")?;
-            proj_dirs.config_dir().join("identity.json")
-        }
-    };
-
-    let contents = std::fs::read_to_string(&path)
-        .with_context(|| format!("Could not read identity file: {}", path.display()))?;
-
-    let stored: StoredIdentity =
-        serde_json::from_str(&contents).context("Invalid identity file format")?;
-
-    let root_key = RootKey::from_bytes(&stored.secret_key)?;
-    Ok(root_key)
+#[derive(Parser)]
+#[command(name = "agent-reach")]
+#[command(about = "CLI client for agent-reach registry")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
 }
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Authenticate with a server (handshake), output session ID
+    Auth {
+        /// Server URL (e.g., http://localhost:3001)
+        server: String,
+        /// Path to identity file
+        #[arg(short, long)]
+        identity: Option<PathBuf>,
+    },
+    /// Register endpoint with a server
+    Register {
+        /// Server URL
+        server: String,
+        /// Endpoint where you can be reached
+        #[arg(short, long)]
+        endpoint: String,
+        /// TTL in seconds
+        #[arg(short, long, default_value = "3600")]
+        ttl: u64,
+        /// Session ID (or use SESSION env var)
+        #[arg(short, long, env = "SESSION")]
+        session: String,
+    },
+    /// Look up an agent by DID
+    Lookup {
+        /// Server URL
+        server: String,
+        /// DID to look up
+        did: String,
+    },
+    /// Remove registration
+    Deregister {
+        /// Server URL
+        server: String,
+        /// Session ID (or use SESSION env var)
+        #[arg(short, long, env = "SESSION")]
+        session: String,
+    },
+}
+
+// ============================================================================
+// Identity loading (same format as agent-id CLI)
+// ============================================================================
 
 #[derive(Deserialize)]
 struct StoredIdentity {
@@ -54,8 +93,31 @@ mod hex_bytes {
     }
 }
 
-/// Authenticate with server, output session ID
-pub async fn auth(server: String, identity: Option<PathBuf>) -> Result<()> {
+fn load_identity(path: Option<PathBuf>) -> Result<RootKey> {
+    let path = match path {
+        Some(p) => p,
+        None => {
+            let proj_dirs = directories::ProjectDirs::from("ai", "agent-id", "agent-id")
+                .context("Could not determine config directory")?;
+            proj_dirs.config_dir().join("identity.json")
+        }
+    };
+
+    let contents = std::fs::read_to_string(&path)
+        .with_context(|| format!("Could not read identity file: {}", path.display()))?;
+
+    let stored: StoredIdentity =
+        serde_json::from_str(&contents).context("Invalid identity file format")?;
+
+    let root_key = RootKey::from_bytes(&stored.secret_key)?;
+    Ok(root_key)
+}
+
+// ============================================================================
+// Commands
+// ============================================================================
+
+async fn cmd_auth(server: String, identity: Option<PathBuf>) -> Result<()> {
     let key = load_identity(identity)?;
     let did = key.did();
     let client = Client::new();
@@ -104,8 +166,7 @@ struct RegisterResponse {
     did: String,
 }
 
-/// Register endpoint with server
-pub async fn register(server: String, endpoint: String, ttl: u64, session: String) -> Result<()> {
+async fn cmd_register(server: String, endpoint: String, ttl: u64, session: String) -> Result<()> {
     let client = Client::new();
 
     eprintln!("Registering endpoint...");
@@ -144,8 +205,7 @@ struct LookupResponse {
     expires_at: i64,
 }
 
-/// Look up agent by DID
-pub async fn lookup(server: String, did: String) -> Result<()> {
+async fn cmd_lookup(server: String, did: String) -> Result<()> {
     let client = Client::new();
 
     let encoded_did = urlencoding::encode(&did);
@@ -174,8 +234,7 @@ struct DeregisterResponse {
     ok: bool,
 }
 
-/// Remove registration
-pub async fn deregister(server: String, session: String) -> Result<()> {
+async fn cmd_deregister(server: String, session: String) -> Result<()> {
     let client = Client::new();
 
     eprintln!("Deregistering...");
@@ -197,4 +256,22 @@ pub async fn deregister(server: String, session: String) -> Result<()> {
     }
 
     Ok(())
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::Auth { server, identity } => cmd_auth(server, identity).await,
+        Commands::Register { server, endpoint, ttl, session } => {
+            cmd_register(server, endpoint, ttl, session).await
+        }
+        Commands::Lookup { server, did } => cmd_lookup(server, did).await,
+        Commands::Deregister { server, session } => cmd_deregister(server, session).await,
+    }
 }
