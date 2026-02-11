@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     Json,
 };
 use parking_lot::RwLock;
 use tracing::info;
 
+use agent_id::RootKey;
 use agent_id_handshake::{
     messages::{Hello, Proof, ProofAccepted},
     protocol::Verifier,
@@ -21,8 +22,10 @@ use crate::types::*;
 
 /// Shared state for handshake sessions
 pub struct HandshakeState {
-    /// Pending challenges (challenge_hash -> challenge)
-    pub pending_challenges: RwLock<HashMap<String, Challenge>>,
+    /// agent-reach's own identity
+    pub key: RootKey,
+    /// Pending challenges (challenge_hash -> (challenge, verifier))
+    pub pending_challenges: RwLock<HashMap<String, (Challenge, Verifier)>>,
     /// Authenticated sessions (session_id -> did)
     pub sessions: RwLock<HashMap<String, AuthenticatedSession>>,
 }
@@ -35,7 +38,13 @@ pub struct AuthenticatedSession {
 
 impl HandshakeState {
     pub fn new() -> Self {
+        // Generate identity for agent-reach service
+        // TODO: Load from file for persistence
+        let key = RootKey::generate();
+        info!(did = %key.did(), "agent-reach identity generated");
+        
         Self {
+            key,
             pending_challenges: RwLock::new(HashMap::new()),
             sessions: RwLock::new(HashMap::new()),
         }
@@ -71,12 +80,12 @@ pub async fn hello(
     let challenge = verifier.handle_hello(&hello)
         .map_err(|e| ReachError::HandshakeError(e.to_string()))?;
 
-    // Store challenge for verification
+    // Store challenge and verifier for verification
     let challenge_hash = agent_id_handshake::protocol::hash_challenge(&challenge)
         .map_err(|e| ReachError::Internal(e.to_string()))?;
     
     state.handshake.pending_challenges.write()
-        .insert(challenge_hash, challenge.clone());
+        .insert(challenge_hash, (challenge.clone(), verifier));
 
     info!(did = %hello.did, "Sent Challenge");
 
@@ -92,25 +101,20 @@ pub async fn proof(
 ) -> Result<Json<ProofAccepted>, ReachError> {
     info!(did = %proof.responder_did, "Received Proof");
 
-    // Get the pending challenge
-    let challenge = state.handshake.pending_challenges.write()
+    // Get the pending challenge and verifier
+    let (challenge, verifier) = state.handshake.pending_challenges.write()
         .remove(&proof.challenge_hash)
         .ok_or(ReachError::InvalidChallenge)?;
 
-    // Parse DID to get verifier
-    let did: agent_id::Did = proof.responder_did.parse()
-        .map_err(|_| ReachError::InvalidDid)?;
-    
-    let verifier = Verifier::new(did);
-
     // Verify the proof
     verifier.verify_proof(&proof, &challenge)
-        .map_err(|_| ReachError::InvalidSignature)?;
+        .map_err(|e| ReachError::HandshakeError(e.to_string()))?;
 
     info!(did = %proof.responder_did, "Proof verified");
 
-    // Generate session ID
-    let session_id = uuid::Uuid::new_v4().to_string();
+    // Accept proof and generate counter-proof (mutual auth)
+    let accepted = verifier.accept_proof(&proof, &state.handshake.key)
+        .map_err(|e| ReachError::HandshakeError(e.to_string()))?;
 
     // Store authenticated session
     let session = AuthenticatedSession {
@@ -118,15 +122,9 @@ pub async fn proof(
         created_at: chrono::Utc::now().timestamp(),
     };
     state.handshake.sessions.write()
-        .insert(session_id.clone(), session);
+        .insert(accepted.session_id.clone(), session);
 
-    // Create ProofAccepted (without counter-proof since we're a service, not an agent)
-    let accepted = ProofAccepted {
-        session_id: session_id.clone(),
-        counter_proof: None,
-    };
-
-    info!(did = %proof.responder_did, session = %session_id, "Session created");
+    info!(did = %proof.responder_did, session = %accepted.session_id, "Session created");
 
     Ok(Json(accepted))
 }
