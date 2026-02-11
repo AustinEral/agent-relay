@@ -31,7 +31,7 @@ async fn main() {
         .with_state(registry);
 
     // Run server
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     tracing::info!("agent-reach listening on {}", addr);
     
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
