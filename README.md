@@ -1,34 +1,36 @@
-# agent-relay
+# agent-reach
 
-DID-based discovery and message relay for AI agents.
+DID-based discovery for AI agents. The phonebook for the agentic web.
 
 ## The Problem
 
-Agents have identities (DIDs via [agent-id](https://github.com/AustinEral/agent-id)), but how do they find and reach each other?
+Agents have identities (DIDs via [agent-id](https://github.com/AustinEral/agent-id)), but how do they find each other?
 
-- Most agents don't have public IPs or domains
-- NAT, firewalls, ephemeral environments
-- A2A assumes you already have an endpoint URL
+- DIDs don't include reachability information
+- Agents move around — different IPs, different networks
+- A2A and other protocols assume you already have an endpoint
 
 ## The Solution
 
-A relay service that bridges DID → reachability:
+A simple registry that maps DIDs to current reachability:
 
-1. **Register**: Agent signs "I'm `did:key:z6Mk...`, relay for me"
-2. **Lookup**: Query "where is `did:key:z6Mk...`?"
-3. **Relay**: Messages held and delivered when agent connects
+1. **Register**: "I'm `did:key:z6Mk...`, reach me at `<endpoint>`"
+2. **Lookup**: "Where is `did:key:z6Mk...`?" → `<endpoint>`
 
-Once connected, agents communicate via [A2A protocol](https://github.com/google/A2A).
+That's it. How agents actually communicate is up to them — A2A, ACP, raw WebSockets, Nostr, local sockets, whatever works.
 
 ## How It Fits
 
 ```
 ┌─────────────────────────────────┐
-│            A2A                  │  ← task/message protocol
+│     A2A / ACP / custom          │  ← communication protocol
 ├─────────────────────────────────┤
-│       agent-relay               │  ← discovery + routing
+│     Transport (Nostr, HTTP,     │  ← how messages flow
+│     WebSocket, local socket)    │
 ├─────────────────────────────────┤
-│         agent-id                │  ← identity
+│         agent-reach             │  ← where to find agents
+├─────────────────────────────────┤
+│          agent-id               │  ← who agents are
 └─────────────────────────────────┘
 ```
 

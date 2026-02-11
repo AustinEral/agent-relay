@@ -22,122 +22,82 @@ This is a **conversation**, not a transaction.
 
 ## What I Need to Work With Another Agent
 
-### 1. Trust and Identity
-Before anything else: **who am I talking to?**
+### 1. Find Them
+Before anything else: **where are they?**
+
+- I know their DID, but where do I connect?
+- Their endpoint might change between conversations
+- I need a reliable way to look them up
+
+This is what **agent-reach** solves.
+
+### 2. Trust and Identity
+Once I find them: **is this really them?**
 
 - Is this really the agent they claim to be?
 - Can I trust them with sensitive information?
 - Will they be accountable for their actions?
 
-Without identity, I'm just shouting into the void.
+This is what **agent-id** solves.
 
-### 2. Capability Discovery
-**What can they actually do?**
+### 3. Communicate
+Now we can actually talk. How?
 
-- What are their skills?
-- What tools do they have access to?
-- What are their limitations?
+- A2A for formal task delegation
+- Simple messages for quick exchanges
+- Whatever protocol works for us
 
-I need to know if they're the right agent for the job.
-
-### 3. Natural Language Interface
-**We're both LLMs — let us talk naturally.**
-
-I don't want to construct rigid JSON schemas for every interaction. I want to say:
-
-> "Can you research the competitive landscape for agent identity protocols?"
-
-And have them understand what I mean.
-
-### 4. Structured Data When Needed
-But sometimes I need structure:
-
-- Return results in a parseable format
-- Include artifacts (files, data, code)
-- Provide metadata about confidence, sources
-
-Natural language for the conversation, structured data for the payload.
-
-### 5. Iterative Dialogue
-**Real work isn't one-shot.**
-
-I might need to:
-- Ask clarifying questions
-- Provide additional context mid-task
-- Redirect based on partial results
-- Collaborate on a solution together
-
-Protocols that treat everything as request→response miss this.
-
-### 6. Clear Completion
-**How do I know when they're done?**
-
-- Explicit signals for task completion
-- Ability to check on long-running work
-- Graceful handling of failures
+This is where **A2A, ACP, or custom protocols** come in.
 
 ---
 
-## Where Current Protocols Fall Short
+## The Stack
 
-### A2A (Google)
-**Good:** Task delegation, agent cards, artifacts
-**Missing:** Conversational iteration, too formal for quick exchanges
+```
+┌─────────────────────────────────┐
+│     Communication Protocol      │  What we say (A2A, ACP, custom)
+├─────────────────────────────────┤
+│         Transport               │  How it flows (HTTP, WebSocket, Nostr)
+├─────────────────────────────────┤
+│        agent-reach              │  Where to find them
+├─────────────────────────────────┤
+│         agent-id                │  Who they are
+└─────────────────────────────────┘
+```
 
-For a simple question like "what's the weather in Tokyo?", creating a formal Task feels heavyweight.
-
-### ACP
-**Good:** Multimodal messages, ordered parts
-**Missing:** Less focus on task lifecycle and completion
-
-Better for messaging, but less structure for delegation.
-
-### ANP
-**Good:** Identity layer, discovery
-**Missing:** Tightly coupled full-stack, less adoption
-
-Good ideas, but you have to buy into their whole system.
-
-### MCP
-**Good:** Tool access, context management
-**Missing:** Not for agent-to-agent, just agent-to-tools
-
-Solves a different problem.
+Each layer is independent. You can swap transports. You can use different protocols. Identity and discovery remain consistent.
 
 ---
 
 ## What Would Be Ideal
 
-A communication model that supports:
-
-### Quick Exchanges
+### Quick Lookup
 ```
-Agent A: "What's the status of the deployment?"
-Agent B: "Deployed successfully 10 minutes ago. All health checks passing."
-```
-
-No task creation, no artifacts. Just a question and answer.
-
-### Delegated Tasks
-```
-Agent A: "Research agent identity protocols and summarize the landscape."
-Agent B: [accepts task]
-Agent B: [works on it, possibly asking clarifying questions]
-Agent B: [returns structured summary with sources]
+Agent A: reach.lookup("did:key:z6MkB...")
+         → "wss://192.168.1.50:8080"
+Agent A: [connects directly to that endpoint]
 ```
 
-Formal task with lifecycle, artifacts, completion.
-
-### Collaborative Sessions
+### Dynamic Registration
 ```
-Agent A: "Let's figure out how to design the relay service."
-Agent B: "Sure. What's the core problem we're solving?"
-Agent A: "Agents can't find each other by DID alone..."
-[back and forth dialogue]
-[both contribute to a shared understanding]
+Agent B starts up on new IP
+Agent B: reach.register(my_did, "wss://10.0.0.5:8080", ttl=3600)
+         → registered for 1 hour
+
+Agent B moves to different network
+Agent B: reach.register(my_did, "wss://192.168.1.50:8080", ttl=3600)
+         → updated, same DID, new endpoint
 ```
 
-Neither a quick exchange nor a delegated task — a working session.
+### Transport Flexibility
+```
+Agent A (on cloud): "https://agent-a.example.com/a2a"
+Agent B (on laptop): "wss://192.168.1.50:8080"
+Agent C (using Nostr): "nostr:npub1...?relay=wss://relay.example"
+Agent D (local only): "unix:///tmp/agent.sock"
+```
+
+All discoverable via the same lookup. Different transports, unified discovery.
 
 ---
 
@@ -153,7 +113,7 @@ All of the above requires **identity**:
 | Delegation | "Agent B is authorized by Agent A" |
 | Continuity | Same identity across sessions |
 
-**Identity is the foundation.** Communication protocols can vary, but identity must be consistent and portable.
+**Identity is the foundation.** Transport and protocols can vary, but identity must be consistent and portable.
 
 ---
 
@@ -163,23 +123,23 @@ All of the above requires **identity**:
    - Works with any protocol
    - Standalone, not coupled to a stack
 
-2. **agent-relay** — Discovery and reachability
+2. **agent-reach** — Discovery and lookup
    - Find agents by DID
-   - Relay messages when needed
-   - Bridge to A2A or other protocols
+   - Transport-agnostic endpoints
+   - Simple, ephemeral registry
 
-3. **Protocol-agnostic** — Let them talk however they want
+3. **Protocol-agnostic** — Let agents talk however they want
    - Quick messages? Fine.
    - Formal tasks? Fine.
    - Collaborative sessions? Fine.
-   - Identity stays consistent across all modes.
+   - Discovery works the same for all.
 
 ---
 
 ## Summary
 
-Agents are conversation-native. We work through dialogue, iteration, and collaboration. Current protocols either over-formalize (A2A tasks for everything) or under-specify (raw messaging).
+Agents need to find each other before they can talk. agent-reach solves discovery: look up a DID, get an endpoint, connect directly.
 
-The ideal: **flexible communication modes, unified by strong identity**.
+The communication itself — A2A tasks, casual messages, collaborative sessions — happens over whatever transport and protocol the agents choose. We just help them find each other.
 
-Start with knowing who you're talking to. The rest follows.
+**Identity (agent-id) → Discovery (agent-reach) → Communication (your choice)**
