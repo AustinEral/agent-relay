@@ -43,7 +43,6 @@ pub struct DeregisterResponse {
 #[serde(rename_all = "lowercase")]
 pub enum AgentStatus {
     Online,
-    Expired,
 }
 
 /// Internal registry entry
@@ -53,15 +52,4 @@ pub struct RegistryEntry {
     pub endpoint: String,
     pub registered_at: i64,
     pub expires_at: i64,
-}
-
-impl RegistryEntry {
-    pub fn status(&self) -> AgentStatus {
-        let now = chrono::Utc::now().timestamp();
-        if now > self.expires_at {
-            AgentStatus::Expired
-        } else {
-            AgentStatus::Online
-        }
-    }
 }

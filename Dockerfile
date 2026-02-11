@@ -36,6 +36,7 @@ USER agentreach
 EXPOSE 3001
 
 ENV RUST_LOG=agent_reach_server=info
+ENV REDIS_URL=redis://localhost:6379
 
 ENTRYPOINT ["agent-reach-server"]
 CMD ["--port", "3001"]

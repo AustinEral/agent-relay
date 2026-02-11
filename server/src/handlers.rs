@@ -39,7 +39,6 @@ pub struct AuthenticatedSession {
 impl HandshakeState {
     pub fn new() -> Self {
         // Generate identity for agent-reach service
-        // TODO: Load from file for persistence
         let key = RootKey::generate();
         info!(did = %key.did(), "agent-reach identity generated");
         
@@ -183,7 +182,8 @@ pub async fn register(
         registered_at: now,
         expires_at,
     };
-    state.registry.register(entry);
+    state.registry.register(entry).await
+        .map_err(|e| ReachError::Internal(e.to_string()))?;
 
     info!(did = %session.did, "Agent registered");
 
@@ -206,17 +206,14 @@ pub async fn lookup(
         .map_err(|_| ReachError::InvalidDid)?
         .into_owned();
 
-    let entry = state.registry.lookup(&did).ok_or(ReachError::NotFound)?;
-
-    let status = entry.status();
-    if status == AgentStatus::Expired {
-        return Err(ReachError::Expired);
-    }
+    let entry = state.registry.lookup(&did).await
+        .map_err(|e| ReachError::Internal(e.to_string()))?
+        .ok_or(ReachError::NotFound)?;
 
     Ok(Json(LookupResponse {
         did: entry.did,
         endpoint: entry.endpoint,
-        status,
+        status: AgentStatus::Online,
         registered_at: entry.registered_at,
         expires_at: entry.expires_at,
     }))
@@ -231,7 +228,8 @@ pub async fn deregister(
 ) -> Result<Json<DeregisterResponse>, ReachError> {
     let session = get_session(&headers, &state)?;
 
-    let existed = state.registry.deregister(&session.did);
+    let existed = state.registry.deregister(&session.did).await
+        .map_err(|e| ReachError::Internal(e.to_string()))?;
     
     if existed {
         info!(did = %session.did, "Agent deregistered");

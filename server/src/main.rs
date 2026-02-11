@@ -20,6 +20,10 @@ struct Cli {
     /// Port to listen on
     #[arg(short, long, default_value = "3001")]
     port: u16,
+
+    /// Redis URL
+    #[arg(long, env = "REDIS_URL")]
+    redis_url: String,
 }
 
 #[tokio::main]
@@ -33,9 +37,14 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    // Connect to Redis
+    tracing::info!("Connecting to Redis...");
+    let registry = registry::Registry::new(&cli.redis_url).await?;
+    tracing::info!("Redis connected");
+
     // Create state
     let state = AppState {
-        registry: registry::Registry::new(),
+        registry,
         handshake: Arc::new(HandshakeState::new()),
     };
 
