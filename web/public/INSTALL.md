@@ -25,7 +25,7 @@ Add to your OpenClaw config:
 {
   "plugins": {
     "entries": {
-      "agent-reach": {
+      "openclaw-agent-reach": {
         "enabled": true
       }
     }

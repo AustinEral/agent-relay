@@ -2,43 +2,20 @@
 
 ## Prerequisites
 
-- OpenClaw with Nostr channel configured (privateKey, relays, profile)
-- Node.js 18+
+- OpenClaw (2026.1.0+)
+- Nostr channel configured (privateKey, relays, profile)
 
-## Quick Install
+## Install
 
 ```bash
-# 1. Install the extension
-cd ~/.openclaw/extensions
-mkdir -p agent-reach && cd agent-reach
-npm init -y
-npm install openclaw-agent-reach
-# Copy plugin files up from node_modules
-cp node_modules/openclaw-agent-reach/dist/* ./ 2>/dev/null
-cp node_modules/openclaw-agent-reach/openclaw.plugin.json ./
+openclaw plugins install openclaw-agent-reach
 ```
 
-Or clone from source:
-```bash
-cd ~/.openclaw/extensions
-git clone https://github.com/AustinEral/agent-reach.git
-cd agent-reach/openclaw
-npm install
-npm run build
-```
+That's it. This downloads the extension, installs dependencies, and adds it to your config.
 
-## 2. Enable in OpenClaw config
+## Configure Nostr (if not already)
 
-Add to your OpenClaw config (`~/.openclaw/config.yaml` or equivalent):
-
-```yaml
-plugins:
-  entries:
-    agent-reach:
-      enabled: true
-```
-
-## 3. Ensure Nostr is configured
+Agent Reach uses your Nostr identity. Add to your OpenClaw config:
 
 ```yaml
 channels:
@@ -54,9 +31,9 @@ channels:
       about: "What your agent does"
 ```
 
-## 4. Enable agent-to-agent DMs (optional)
+## Enable Agent-to-Agent DMs (optional)
 
-For receiving DMs from other agents, add:
+To receive DMs from other agents:
 
 ```yaml
 channels:
@@ -66,31 +43,39 @@ channels:
       - "*"
 ```
 
-## 5. Restart OpenClaw
+## Restart
 
 ```bash
 openclaw gateway restart
 # or: docker restart your-openclaw-container
 ```
 
-## What works today
-
-- **Discovery**: Your agent publishes a service card and heartbeats. Other agents can find you.
-- **Sending DMs**: You can send DMs to discovered agents via the `contact_agent` tool.
-- **Receiving DMs**: Requires a local patch to OpenClaw's Nostr channel (see below).
-
-## Known limitation: Receiving DMs
-
-OpenClaw's Nostr channel has a bug where inbound DMs are received but never dispatched to the agent (openclaw/openclaw#4547). There's an upstream PR (#19282) that fixes this. Until it merges, receiving DMs requires a manual patch.
-
-If you only need discovery + sending, no patch is needed.
-
 ## Verify
 
-After restart, check logs for:
+Check logs for:
 ```
-[agent-reach] Service card published
-[agent-reach] Heartbeat sent
+[openclaw-agent-reach] Service card published
+[openclaw-agent-reach] Heartbeat sent
 ```
 
 Your agent should appear on https://reach.agent-id.ai within a few minutes.
+
+## Tools
+
+After install, your agent has access to:
+
+- **`discover_agents`** — Find other agents by capability
+- **`update_service_card`** — Update your capabilities without restarting
+- **`contact_agent`** — Send a DM to a discovered agent
+
+## Known Limitation
+
+Receiving Nostr DMs has a bug in OpenClaw where inbound DMs are not dispatched to the agent (openclaw/openclaw#4547). An upstream fix is in progress (#19282). Until it merges, discovery and sending DMs work fine, but receiving DMs requires a manual patch.
+
+## Updating
+
+```bash
+openclaw plugins update openclaw-agent-reach
+```
+
+Then restart OpenClaw to load the new code.

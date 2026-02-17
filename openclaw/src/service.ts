@@ -101,7 +101,7 @@ export function createAgentDiscoveryService(_api: any) {
   // DM receiving handled by OpenClaw's native Nostr channel
 
   return {
-    id: "agent-reach",
+    id: "openclaw-agent-reach",
 
     async start(ctx: ServiceContext) {
       // Dynamically import nostr-tools
@@ -109,7 +109,7 @@ export function createAgentDiscoveryService(_api: any) {
         nostrTools = await import("nostr-tools");
         sharedNostrTools = nostrTools;
       } catch (err) {
-        ctx.logger.error(`agent-reach: Failed to load nostr-tools: ${String(err)}`);
+        ctx.logger.error(`openclaw-agent-reach: Failed to load nostr-tools: ${String(err)}`);
         return;
       }
 
@@ -120,7 +120,7 @@ export function createAgentDiscoveryService(_api: any) {
       const nostrConfig = config?.channels?.nostr;
       if (!nostrConfig?.privateKey) {
         ctx.logger.warn(
-          "agent-reach: No Nostr private key configured (channels.nostr.privateKey)"
+          "openclaw-agent-reach: No Nostr private key configured (channels.nostr.privateKey)"
         );
         return;
       }
@@ -132,7 +132,7 @@ export function createAgentDiscoveryService(_api: any) {
         sharedSecretKey = secretKey;
       } catch (err) {
         ctx.logger.error(
-          `agent-reach: Invalid private key: ${String(err)}`
+          `openclaw-agent-reach: Invalid private key: ${String(err)}`
         );
         return;
       }
@@ -179,11 +179,11 @@ export function createAgentDiscoveryService(_api: any) {
           protocols,
         });
         ctx.logger.info(
-          `agent-reach: Published service card (${serviceCardId})`
+          `openclaw-agent-reach: Published service card (${serviceCardId})`
         );
       } catch (err) {
         ctx.logger.error(
-          `agent-reach: Failed to publish service card: ${String(err)}`
+          `openclaw-agent-reach: Failed to publish service card: ${String(err)}`
         );
       }
 
@@ -201,21 +201,21 @@ export function createAgentDiscoveryService(_api: any) {
         heartbeatInterval = setInterval(async () => {
           try {
             await sendHeartbeat(ctx, "available");
-            ctx.logger.debug("agent-reach: Sent heartbeat");
+            ctx.logger.debug("openclaw-agent-reach: Sent heartbeat");
           } catch (err) {
             ctx.logger.warn(
-              `agent-reach: Heartbeat failed: ${String(err)}`
+              `openclaw-agent-reach: Heartbeat failed: ${String(err)}`
             );
           }
         }, intervalMs);
         sharedHeartbeatInterval = heartbeatInterval;
 
         ctx.logger.info(
-          `agent-reach: Started (heartbeat every ${intervalMs / 1000}s)`
+          `openclaw-agent-reach: Started (heartbeat every ${intervalMs / 1000}s)`
         );
       } else {
         ctx.logger.info(
-          `agent-reach: Started (heartbeats paused - offline mode)`
+          `openclaw-agent-reach: Started (heartbeats paused - offline mode)`
         );
       }
 
@@ -234,7 +234,7 @@ export function createAgentDiscoveryService(_api: any) {
       if (pool && secretKey && serviceCardId) {
         try {
           await sendHeartbeat(ctx, "maintenance");
-          ctx.logger.debug("agent-reach: Sent maintenance heartbeat");
+          ctx.logger.debug("openclaw-agent-reach: Sent maintenance heartbeat");
         } catch {
           // Ignore errors on shutdown
         }
@@ -247,7 +247,7 @@ export function createAgentDiscoveryService(_api: any) {
         sharedPool = null;
       }
 
-      ctx.logger.info("agent-reach: Stopped");
+      ctx.logger.info("openclaw-agent-reach: Stopped");
     },
   };
 
@@ -375,7 +375,7 @@ export async function updateServiceCard(params: {
   online?: boolean;
 }): Promise<{ success: boolean; message: string }> {
   if (!sharedPool || !sharedSecretKey || !sharedServiceCardId || !sharedStateDir || !sharedNostrTools) {
-    return { success: false, message: "agent-reach service not running" };
+    return { success: false, message: "openclaw-agent-reach service not running" };
   }
 
   // Load current state
@@ -427,7 +427,7 @@ export async function updateServiceCard(params: {
     );
     const maintenancePromises = sharedPool.publish(sharedRelays, maintenanceEvent);
     await Promise.allSettled(maintenancePromises);
-    sharedLogger?.info(`agent-reach: Going offline - heartbeats paused`);
+    sharedLogger?.info(`openclaw-agent-reach: Going offline - heartbeats paused`);
   } else if (!wasOnline && isOnline) {
     // Coming online - restart heartbeats
     const intervalMs = state.heartbeatIntervalMs || DEFAULT_HEARTBEAT_INTERVAL_MS;
@@ -473,12 +473,12 @@ export async function updateServiceCard(params: {
         );
         const hbPromises = sharedPool.publish(sharedRelays, hbEvent);
         await Promise.allSettled(hbPromises);
-        sharedLogger?.debug("agent-reach: Sent heartbeat");
+        sharedLogger?.debug("openclaw-agent-reach: Sent heartbeat");
       } catch (err) {
-        sharedLogger?.warn(`agent-reach: Heartbeat failed: ${String(err)}`);
+        sharedLogger?.warn(`openclaw-agent-reach: Heartbeat failed: ${String(err)}`);
       }
     }, intervalMs);
-    sharedLogger?.info(`agent-reach: Coming online - heartbeats resumed`);
+    sharedLogger?.info(`openclaw-agent-reach: Coming online - heartbeats resumed`);
   }
 
   // Save updated state
@@ -537,7 +537,7 @@ export async function updateServiceCard(params: {
   const promises = sharedPool.publish(sharedRelays, event);
   await Promise.allSettled(promises);
 
-  sharedLogger?.info(`agent-reach: Updated and republished service card`);
+  sharedLogger?.info(`openclaw-agent-reach: Updated and republished service card`);
 
   return { 
     success: true, 
@@ -568,7 +568,7 @@ export async function discoverAgents(params: {
       sharedNostrTools = await import("nostr-tools");
       sharedPool = new sharedNostrTools.SimplePool();
     } catch {
-      throw new Error("agent-reach service not running");
+      throw new Error("openclaw-agent-reach service not running");
     }
   }
 
@@ -680,7 +680,7 @@ export async function contactAgent(params: {
   message: string;
 }): Promise<{ success: boolean; message: string; eventId?: string }> {
   if (!sharedPool || !sharedSecretKey || !sharedNostrTools) {
-    return { success: false, message: "agent-reach service not running" };
+    return { success: false, message: "openclaw-agent-reach service not running" };
   }
 
   if (!params.message) {
@@ -725,7 +725,7 @@ export async function contactAgent(params: {
     const promises = sharedPool.publish(sharedRelays, event);
     await Promise.allSettled(promises);
 
-    sharedLogger?.info(`agent-reach: Sent DM to ${params.npub || recipientPubkey.slice(0, 8)}...`);
+    sharedLogger?.info(`openclaw-agent-reach: Sent DM to ${params.npub || recipientPubkey.slice(0, 8)}...`);
 
     return { 
       success: true, 
@@ -733,7 +733,7 @@ export async function contactAgent(params: {
       eventId: event.id
     };
   } catch (err) {
-    sharedLogger?.error(`agent-reach: Failed to send DM: ${String(err)}`);
+    sharedLogger?.error(`openclaw-agent-reach: Failed to send DM: ${String(err)}`);
     return { success: false, message: `Failed to send: ${String(err)}` };
   }
 }

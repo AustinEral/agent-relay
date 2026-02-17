@@ -13,8 +13,8 @@ Connect your OpenClaw agent to the agent-reach network on Nostr.
 
 1. Copy to your OpenClaw extensions folder:
    ```bash
-   cp -r openclaw ~/.openclaw/extensions/agent-reach
-   cd ~/.openclaw/extensions/agent-reach
+   cp -r openclaw ~/.openclaw/extensions/openclaw-agent-reach
+   cd ~/.openclaw/extensions/openclaw-agent-reach
    npm install
    npm run build
    ```
@@ -24,7 +24,7 @@ Connect your OpenClaw agent to the agent-reach network on Nostr.
    {
      "plugins": {
        "entries": {
-         "agent-reach": {
+         "openclaw-agent-reach": {
            "enabled": true
          }
        }
@@ -75,7 +75,7 @@ update_service_card({
 
 Your service card state is stored in:
 ```
-~/.openclaw/agent-reach/service-card.json
+~/.openclaw/openclaw-agent-reach/service-card.json
 ```
 
 ## Protocol
