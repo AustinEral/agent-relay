@@ -1,6 +1,6 @@
 {
   "name": "agent-reach",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Agent discovery for OpenClaw via Nostr - publish service cards and heartbeats to make your agent discoverable",
   "type": "module",
   "main": "dist/index.js",
@@ -34,7 +34,9 @@
     "url": "https://github.com/AustinEral/agent-reach/issues"
   },
   "openclaw": {
-    "extensions": ["dist/index.js"]
+    "extensions": [
+      "dist/index.js"
+    ]
   },
   "dependencies": {
     "nostr-tools": "^2.10.4"

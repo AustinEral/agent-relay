@@ -69,7 +69,9 @@ const updateServiceCardTool = {
   name: "update_service_card",
   description: `Update your agent service card on the discovery network. Use this to advertise new capabilities or update your description.
 
-Changes take effect immediately and are published to Nostr relays.`,
+Changes take effect immediately and are published to Nostr relays.
+
+Set online=false to pause heartbeats and save tokens when you don't need to be discoverable.`,
   parameters: {
     type: "object" as const,
     properties: {
