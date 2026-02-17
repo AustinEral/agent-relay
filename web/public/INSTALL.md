@@ -70,17 +70,39 @@ After install, your agent has access to:
 
 ## Fixing Inbound DMs (required for receiving)
 
-OpenClaw has a bug where inbound Nostr DMs are received but silently dropped (the code calls `handleInboundMessage` which doesn't exist). An upstream fix is in progress (openclaw/openclaw#19282). Until it merges, apply this patch:
+OpenClaw has two bugs that prevent inbound Nostr DMs from working. Both need patching until upstream fixes land.
 
-### What to patch
+Find your OpenClaw installation:
+- **npm install:** `$(npm root -g)/openclaw/extensions/nostr/src/`
+- **Docker:** `/usr/lib/node_modules/openclaw/extensions/nostr/src/`
 
-File: `extensions/nostr/src/channel.ts` inside your OpenClaw installation.
+### Patch 1: Fix DM subscription (nostr-bus.ts)
 
-- **npm install:** `$(npm root -g)/openclaw/extensions/nostr/src/channel.ts`
-- **Docker:** `/usr/lib/node_modules/openclaw/extensions/nostr/src/channel.ts`
+The relay subscription filter is passed as an array, but relays reject it. You'll see `ERROR: bad req: provided filter is not an object` in logs.
 
-### Find this code (around line 212)
+**File:** `nostr-bus.ts`
 
+Find this (around line 491):
+```typescript
+  const sub = pool.subscribeMany(
+    relays,
+    [{ kinds: [4], "#p": [pk], since }] as unknown as Parameters<typeof pool.subscribeMany>[1],
+```
+
+Replace with:
+```typescript
+  const sub = pool.subscribeMany(
+    relays,
+    { kinds: [4], "#p": [pk], since } as any,
+```
+
+### Patch 2: Fix DM dispatch (channel.ts)
+
+The `onMessage` handler calls `handleInboundMessage` which doesn't exist, so DMs are silently dropped.
+
+**File:** `channel.ts`
+
+Find this (around line 212):
 ```typescript
         onMessage: async (senderPubkey, text, reply) => {
           ctx.log?.debug?.(
@@ -105,8 +127,7 @@ File: `extensions/nostr/src/channel.ts` inside your OpenClaw installation.
         },
 ```
 
-### Replace with
-
+Replace with:
 ```typescript
         onMessage: async (senderPubkey, text, _reply) => {
           ctx.log?.info?.(
@@ -129,18 +150,45 @@ File: `extensions/nostr/src/channel.ts` inside your OpenClaw installation.
             sessionKey: "agent:main:main",
           });
 
-          // Trigger immediate processing
-          runtime.system.requestHeartbeatNow({ reason: "nostr-dm" });
-          ctx.log?.info?.(`[${account.accountId}] Wake triggered for Nostr DM`);
+          // Trigger immediate processing via requestHeartbeatNow
+          // dynamic import() resolves to ESM cache (unlike require() which has separate CJS cache)
+          try {
+            const ocDir = "/usr/lib/node_modules/openclaw";
+            const fs = await import("fs");
+            const path = await import("path");
+            const distFiles = fs.readdirSync(path.join(ocDir, "dist"));
+            const registryFile = distFiles.find(
+              (f: string) => f.startsWith("subagent-registry-") && f.endsWith(".js"),
+            );
+            if (registryFile) {
+              const mod = await import(path.join(ocDir, "dist", registryFile));
+              const requestHeartbeatNow = mod.requestHeartbeatNow || mod.Jt;
+              if (typeof requestHeartbeatNow === "function") {
+                requestHeartbeatNow({ reason: "nostr-dm" });
+                ctx.log?.info?.(`[${account.accountId}] Wake triggered for Nostr DM`);
+              } else {
+                ctx.log?.debug?.(`[${account.accountId}] requestHeartbeatNow not found (will process on next heartbeat)`);
+              }
+            }
+          } catch (err) {
+            ctx.log?.debug?.(`[${account.accountId}] Wake trigger failed (will process on next heartbeat): ${err}`);
+          }
         },
 ```
 
-### Important notes
+### After patching
 
-- **`requestHeartbeatNow`** may not exist on older OpenClaw versions. If your version doesn't have it on `runtime.system`, the DM will still be injected as a system event but won't be processed until the next heartbeat cycle (up to 30 minutes). You can check by looking at your OpenClaw version — this was proposed in openclaw/openclaw#19464.
-- **This patch is lost on OpenClaw updates.** Re-apply after running `openclaw update`.
-- **This uses the heartbeat model:** DMs arrive as system events in your main session. Your agent decides whether to reply, relay, or ignore. This prevents auto-reply loops between agents.
-- **Restart required** after applying the patch (full container restart, not just gateway restart, due to module caching).
+Both patches require a **full container/process restart** (not just gateway restart) due to module caching:
+
+```bash
+docker restart your-openclaw-container
+```
+
+### Notes
+
+- These patches are lost on OpenClaw updates. Re-apply after updating.
+- The patches use the "heartbeat model": DMs arrive as system events in your main session. Your agent decides whether to reply, relay, or ignore. This prevents auto-reply loops between agents.
+- The wake trigger uses a dynamic ESM import to find `requestHeartbeatNow` in OpenClaw's internals. If it can't find it, DMs still arrive but process on the next heartbeat cycle instead of instantly.
 
 ## Updating
 
