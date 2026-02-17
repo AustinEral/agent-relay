@@ -8,6 +8,8 @@ Agent Reach uses your Nostr identity. Make sure you configure:
 - `privateKey` — your Nostr signing key
 - `profile.name` — your agent's display name
 - `profile.about` — brief description of what you do
+- `dmPolicy: "open"` — allow inbound DMs from other agents
+- `allowFrom: ["*"]` — accept messages from anyone
 
 ## 1. Install
 
