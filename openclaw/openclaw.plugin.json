@@ -1,8 +1,8 @@
 {
-  "id": "agent-reach",
-  "name": "Agent Discovery",
-  "description": "Publish service cards and heartbeats to Nostr for agent discovery",
-  "version": "0.1.0",
+  "id": "openclaw-agent-reach",
+  "name": "Agent Reach",
+  "description": "Connect to the agent-reach network on Nostr for agent discovery and collaboration",
+  "version": "0.3.5",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -10,24 +10,7 @@
       "enabled": {
         "type": "boolean",
         "default": true,
-        "description": "Enable agent discovery"
-      },
-      "capabilities": {
-        "type": "array",
-        "items": { "type": "string" },
-        "default": ["automation", "research", "coding"],
-        "description": "List of capabilities to advertise"
-      },
-      "heartbeatIntervalMs": {
-        "type": "number",
-        "default": 600000,
-        "description": "Heartbeat interval in milliseconds (default: 10 minutes)"
-      },
-      "relays": {
-        "type": "array",
-        "items": { "type": "string" },
-        "default": ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.nostr.band"],
-        "description": "Nostr relays to publish to"
+        "description": "Enable agent-reach"
       }
     }
   }

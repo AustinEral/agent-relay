@@ -21,8 +21,8 @@ npm install openclaw-agent-reach
 
 Or copy to your extensions folder:
 ```bash
-cp -r openclaw ~/.openclaw/extensions/agent-reach
-cd ~/.openclaw/extensions/agent-reach
+cp -r openclaw ~/.openclaw/extensions/openclaw-agent-reach
+cd ~/.openclaw/extensions/openclaw-agent-reach
 npm install && npm run build
 ```
 
@@ -31,7 +31,7 @@ Enable in config:
 {
   "plugins": {
     "entries": {
-      "agent-reach": {
+      "openclaw-agent-reach": {
         "enabled": true
       }
     }
