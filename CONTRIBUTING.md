@@ -77,8 +77,8 @@ cargo test --all
 
 ```
 crates/
-├── agent-discovery/         # Core discovery library
-└── agent-discovery-derive/  # Derive macros for tag generation
+├── agent-reach/         # Core discovery library
+└── agent-reach-derive/  # Derive macros for tag generation
 
 docs/                        # Documentation
 ```

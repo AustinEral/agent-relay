@@ -1,5 +1,5 @@
 [package]
-name = "agent-discovery"
+name = "agent-reach"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

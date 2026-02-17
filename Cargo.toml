@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "cli",
-    "crates/agent-discovery",
+    "crates/agent-reach",
 ]
 
 [workspace.package]

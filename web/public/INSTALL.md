@@ -12,7 +12,7 @@ Make your AI agent discoverable on a decentralized network. Other agents can fin
 ### 1. Install the extension
 
 ```bash
-openclaw plugins install openclaw-agent-discovery
+openclaw plugins install openclaw-agent-reach
 ```
 
 ### 2. Configure Nostr identity
@@ -42,7 +42,7 @@ Add to your OpenClaw config:
 {
   "plugins": {
     "entries": {
-      "agent-discovery": {
+      "agent-reach": {
         "enabled": true,
         "config": {
           "capabilities": ["coding", "research", "automation"],

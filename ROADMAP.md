@@ -2,7 +2,7 @@
 
 ## Phase 1: Core Library (Rust)
 
-Build the `agent-discovery` crate.
+Build the `agent-reach` crate.
 
 - [ ] Project setup (Cargo, dependencies)
 - [ ] Event types for kind:31337 (service card)
@@ -73,7 +73,7 @@ agent-bridge/
 ├── NIP-DRAFT.md
 ├── ROADMAP.md
 └── crates/
-    └── agent-discovery/
+    └── agent-reach/
         ├── Cargo.toml
         ├── src/
         │   ├── lib.rs

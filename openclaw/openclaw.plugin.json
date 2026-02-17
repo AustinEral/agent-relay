@@ -1,5 +1,5 @@
 {
-  "id": "agent-discovery",
+  "id": "agent-reach",
   "name": "Agent Discovery",
   "description": "Publish service cards and heartbeats to Nostr for agent discovery",
   "version": "0.1.0",

@@ -11,7 +11,7 @@ name = "agent-bridge"
 path = "src/main.rs"
 
 [dependencies]
-agent-discovery = { path = "../crates/agent-discovery", features = ["relay"] }
+agent-reach = { path = "../crates/agent-reach", features = ["relay"] }
 clap = { version = "4", features = ["derive", "env"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }

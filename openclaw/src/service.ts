@@ -97,7 +97,7 @@ export function createAgentDiscoveryService(_api: any) {
   let currentState: CardState | null = null;
 
   return {
-    id: "agent-discovery",
+    id: "agent-reach",
 
     async start(ctx: ServiceContext) {
       // Dynamically import nostr-tools
@@ -105,7 +105,7 @@ export function createAgentDiscoveryService(_api: any) {
         nostrTools = await import("nostr-tools");
         sharedNostrTools = nostrTools;
       } catch (err) {
-        ctx.logger.error(`agent-discovery: Failed to load nostr-tools: ${String(err)}`);
+        ctx.logger.error(`agent-reach: Failed to load nostr-tools: ${String(err)}`);
         return;
       }
 
@@ -116,7 +116,7 @@ export function createAgentDiscoveryService(_api: any) {
       const nostrConfig = config?.channels?.nostr;
       if (!nostrConfig?.privateKey) {
         ctx.logger.warn(
-          "agent-discovery: No Nostr private key configured (channels.nostr.privateKey)"
+          "agent-reach: No Nostr private key configured (channels.nostr.privateKey)"
         );
         return;
       }
@@ -128,7 +128,7 @@ export function createAgentDiscoveryService(_api: any) {
         sharedSecretKey = secretKey;
       } catch (err) {
         ctx.logger.error(
-          `agent-discovery: Invalid private key: ${String(err)}`
+          `agent-reach: Invalid private key: ${String(err)}`
         );
         return;
       }
@@ -175,11 +175,11 @@ export function createAgentDiscoveryService(_api: any) {
           protocols,
         });
         ctx.logger.info(
-          `agent-discovery: Published service card (${serviceCardId})`
+          `agent-reach: Published service card (${serviceCardId})`
         );
       } catch (err) {
         ctx.logger.error(
-          `agent-discovery: Failed to publish service card: ${String(err)}`
+          `agent-reach: Failed to publish service card: ${String(err)}`
         );
       }
 
@@ -192,16 +192,16 @@ export function createAgentDiscoveryService(_api: any) {
       heartbeatInterval = setInterval(async () => {
         try {
           await sendHeartbeat(ctx, "available");
-          ctx.logger.debug("agent-discovery: Sent heartbeat");
+          ctx.logger.debug("agent-reach: Sent heartbeat");
         } catch (err) {
           ctx.logger.warn(
-            `agent-discovery: Heartbeat failed: ${String(err)}`
+            `agent-reach: Heartbeat failed: ${String(err)}`
           );
         }
       }, intervalMs);
 
       ctx.logger.info(
-        `agent-discovery: Started (heartbeat every ${intervalMs / 1000}s)`
+        `agent-reach: Started (heartbeat every ${intervalMs / 1000}s)`
       );
     },
 
@@ -216,7 +216,7 @@ export function createAgentDiscoveryService(_api: any) {
       if (pool && secretKey && serviceCardId) {
         try {
           await sendHeartbeat(ctx, "maintenance");
-          ctx.logger.debug("agent-discovery: Sent maintenance heartbeat");
+          ctx.logger.debug("agent-reach: Sent maintenance heartbeat");
         } catch {
           // Ignore errors on shutdown
         }
@@ -229,7 +229,7 @@ export function createAgentDiscoveryService(_api: any) {
         sharedPool = null;
       }
 
-      ctx.logger.info("agent-discovery: Stopped");
+      ctx.logger.info("agent-reach: Stopped");
     },
   };
 
@@ -257,8 +257,8 @@ export function createAgentDiscoveryService(_api: any) {
       ["d", card.id], // Parameterized replaceable event identifier
       ["name", card.name], // Agent name
       ["about", card.about], // Agent description
-      ["L", "agent-discovery"], // NIP-32 namespace
-      ["l", "service-card", "agent-discovery"], // NIP-32 label
+      ["L", "agent-reach"], // NIP-32 namespace
+      ["l", "service-card", "agent-reach"], // NIP-32 label
     ];
 
     // Add capability tags with descriptions
@@ -298,8 +298,8 @@ export function createAgentDiscoveryService(_api: any) {
     const tags: string[][] = [
       ["d", serviceCardId], // Links to service card
       ["s", status], // Status tag for filtering
-      ["L", "agent-discovery"], // NIP-32 namespace
-      ["l", "heartbeat", "agent-discovery"], // NIP-32 label
+      ["L", "agent-reach"], // NIP-32 namespace
+      ["l", "heartbeat", "agent-reach"], // NIP-32 label
     ];
 
     const event = nostrTools.finalizeEvent(
@@ -356,7 +356,7 @@ export async function updateServiceCard(params: {
   heartbeatIntervalMs?: number;
 }): Promise<{ success: boolean; message: string }> {
   if (!sharedPool || !sharedSecretKey || !sharedServiceCardId || !sharedStateDir || !sharedNostrTools) {
-    return { success: false, message: "agent-discovery service not running" };
+    return { success: false, message: "agent-reach service not running" };
   }
 
   // Load current state
@@ -406,8 +406,8 @@ export async function updateServiceCard(params: {
     ["d", sharedServiceCardId],
     ["name", name],
     ["about", about],
-    ["L", "agent-discovery"],
-    ["l", "service-card", "agent-discovery"],
+    ["L", "agent-reach"],
+    ["l", "service-card", "agent-reach"],
   ];
 
   for (const cap of state.capabilities) {
@@ -432,7 +432,7 @@ export async function updateServiceCard(params: {
   const promises = sharedPool.publish(sharedRelays, event);
   await Promise.allSettled(promises);
 
-  sharedLogger?.info(`agent-discovery: Updated and republished service card`);
+  sharedLogger?.info(`agent-reach: Updated and republished service card`);
 
   return { 
     success: true, 
@@ -463,7 +463,7 @@ export async function discoverAgents(params: {
       sharedNostrTools = await import("nostr-tools");
       sharedPool = new sharedNostrTools.SimplePool();
     } catch {
-      throw new Error("agent-discovery service not running");
+      throw new Error("agent-reach service not running");
     }
   }
 
@@ -480,8 +480,8 @@ export async function discoverAgents(params: {
     filter["#c"] = [params.capability];
   }
 
-  // Add label filter for agent-discovery namespace
-  filter["#L"] = ["agent-discovery"];
+  // Add label filter for agent-reach namespace
+  filter["#L"] = ["agent-reach"];
 
   // Query relays for service cards
   const events = await sharedPool.querySync(sharedRelays, filter);

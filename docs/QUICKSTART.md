@@ -1,6 +1,6 @@
 # Quick Start
 
-Get started with agent-discovery in 5 minutes.
+Get started with agent-reach in 5 minutes.
 
 ## Installation
 
@@ -8,7 +8,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-agent-discovery = { git = "https://github.com/AustinEral/agent-reach" }
+agent-reach = { git = "https://github.com/AustinEral/agent-reach" }
 ```
 
 ## Publish a Service Card
@@ -87,13 +87,13 @@ git clone https://github.com/AustinEral/agent-reach.git
 cd agent-bridge
 
 # Publish a demo service card
-cargo run -p agent-discovery --example demo -- publish
+cargo run -p agent-reach --example demo -- publish
 
 # Discover agents
-cargo run -p agent-discovery --example demo -- discover
+cargo run -p agent-reach --example demo -- discover
 
 # Benchmark relays
-cargo run -p agent-discovery --example bench
+cargo run -p agent-reach --example bench
 ```
 
 ## Next Steps

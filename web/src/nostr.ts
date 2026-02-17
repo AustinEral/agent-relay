@@ -91,7 +91,7 @@ export class NostrClient {
     try {
       const events = await this.pool.querySync(this.relays, {
         kinds: [EVENT_KINDS.SERVICE_CARD],
-        '#L': [LABELS.NAMESPACE],  // Filter by agent-discovery namespace
+        '#L': [LABELS.NAMESPACE],  // Filter by agent-reach namespace
         limit: 100,
       });
       console.log(`[NostrClient] Found ${events.length} service cards`);

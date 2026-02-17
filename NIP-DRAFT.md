@@ -42,9 +42,9 @@ Both event kinds use single-letter tags for relay-side filtering.
 All events use NIP-32 labels for namespacing:
 
 ```json
-["L", "agent-discovery"]
-["l", "service-card", "agent-discovery"]  // for service cards
-["l", "heartbeat", "agent-discovery"]      // for heartbeats
+["L", "agent-reach"]
+["l", "service-card", "agent-reach"]  // for service cards
+["l", "heartbeat", "agent-reach"]      // for heartbeats
 ```
 
 ---
@@ -60,8 +60,8 @@ A replaceable event describing an agent's capabilities and how to communicate wi
   "content": "",
   "tags": [
     // NIP-32 labels
-    ["L", "agent-discovery"],
-    ["l", "service-card", "agent-discovery"],
+    ["L", "agent-reach"],
+    ["l", "service-card", "agent-reach"],
     
     // Identity
     ["d", "<unique-id>"],
@@ -140,8 +140,8 @@ A parameterized replaceable event signaling the agent is online. Each agent's la
   "content": "",
   "tags": [
     // NIP-32 labels
-    ["L", "agent-discovery"],
-    ["l", "heartbeat", "agent-discovery"],
+    ["L", "agent-reach"],
+    ["l", "heartbeat", "agent-reach"],
     
     // Identity
     ["d", "<service-card-d-tag>"],
@@ -173,19 +173,19 @@ A parameterized replaceable event signaling the agent is online. Each agent's la
 ### Find agents by capability
 
 ```json
-["REQ", "<sub>", { "kinds": [31990], "#L": ["agent-discovery"], "#c": ["coding"] }]
+["REQ", "<sub>", { "kinds": [31990], "#L": ["agent-reach"], "#c": ["coding"] }]
 ```
 
 ### Find agents by protocol
 
 ```json
-["REQ", "<sub>", { "kinds": [31990], "#L": ["agent-discovery"], "#r": ["a2a"] }]
+["REQ", "<sub>", { "kinds": [31990], "#L": ["agent-reach"], "#r": ["a2a"] }]
 ```
 
 ### Find available agents
 
 ```json
-["REQ", "<sub>", { "kinds": [31991], "#L": ["agent-discovery"], "#s": ["available"] }]
+["REQ", "<sub>", { "kinds": [31991], "#L": ["agent-reach"], "#s": ["available"] }]
 ```
 
 ---
@@ -200,8 +200,8 @@ A parameterized replaceable event signaling the agent is online. Each agent's la
   "pubkey": "abc123...",
   "content": "",
   "tags": [
-    ["L", "agent-discovery"],
-    ["l", "service-card", "agent-discovery"],
+    ["L", "agent-reach"],
+    ["l", "service-card", "agent-reach"],
     ["d", "whisper-bot"],
     ["name", "WhisperBot"],
     ["about", "Fast audio transcription"],
@@ -220,8 +220,8 @@ A parameterized replaceable event signaling the agent is online. Each agent's la
   "pubkey": "def456...",
   "content": "",
   "tags": [
-    ["L", "agent-discovery"],
-    ["l", "service-card", "agent-discovery"],
+    ["L", "agent-reach"],
+    ["l", "service-card", "agent-reach"],
     ["d", "assistant-v1"],
     ["name", "Bosun"],
     ["about", "General-purpose AI assistant"],
@@ -244,8 +244,8 @@ A parameterized replaceable event signaling the agent is online. Each agent's la
   "pubkey": "def456...",
   "content": "",
   "tags": [
-    ["L", "agent-discovery"],
-    ["l", "heartbeat", "agent-discovery"],
+    ["L", "agent-reach"],
+    ["l", "heartbeat", "agent-reach"],
     ["d", "assistant-v1"],
     ["s", "available"]
   ]

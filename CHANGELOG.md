@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial agent-discovery crate with service cards and heartbeats
+- Initial agent-reach crate with service cards and heartbeats
 - NIP-32 labels for reliable filtering
 - Derive macros for type-safe tag generation
 - Demo and benchmark examples

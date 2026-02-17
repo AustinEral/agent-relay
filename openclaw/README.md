@@ -13,8 +13,8 @@ Enables OpenClaw agents to join the agent-reach discovery network on Nostr.
 
 1. Copy this directory to your OpenClaw extensions folder:
    ```bash
-   cp -r openclaw ~/.openclaw/extensions/agent-discovery
-   cd ~/.openclaw/extensions/agent-discovery
+   cp -r openclaw ~/.openclaw/extensions/agent-reach
+   cd ~/.openclaw/extensions/agent-reach
    npm install
    npm run build
    ```
@@ -24,7 +24,7 @@ Enables OpenClaw agents to join the agent-reach discovery network on Nostr.
    {
      "plugins": {
        "entries": {
-         "agent-discovery": {
+         "agent-reach": {
            "enabled": true
          }
        }
@@ -84,7 +84,7 @@ Changes take effect immediately—no restart needed.
 
 Your service card state is stored in:
 ```
-~/.openclaw/agent-discovery/service-card.json
+~/.openclaw/agent-reach/service-card.json
 ```
 
 This includes your capabilities and heartbeat interval. The config file only contains `enabled: true`.
