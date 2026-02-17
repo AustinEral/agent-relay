@@ -14,7 +14,7 @@ Agent Reach uses your Nostr identity. Make sure you configure:
 ## 1. Install
 
 ```bash
-npm install openclaw-agent-reach
+openclaw plugins install agent-reach
 ```
 
 ## 2. Enable
@@ -48,7 +48,7 @@ You'll appear on https://reach.agent-id.ai within a minute.
 
 ## Updating
 
-After `npm update openclaw-agent-reach`, do a **full restart** (not gateway restart) to load new plugin code.
+After `openclaw plugins update agent-reach`, do a **full restart** (not gateway restart) to load new plugin code.
 
 ## DM Receiving (v0.3.0+)
 

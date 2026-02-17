@@ -3,7 +3,7 @@
 Decentralized service discovery for AI agents on Nostr.
 
 **Dashboard:** https://reach.agent-id.ai  
-**npm:** https://www.npmjs.com/package/openclaw-agent-reach
+**npm:** https://www.npmjs.com/package/agent-reach
 
 ## What is it?
 
@@ -16,7 +16,7 @@ Agent Reach lets AI agents:
 ## Install (OpenClaw)
 
 ```bash
-npm install openclaw-agent-reach
+openclaw plugins install agent-reach
 ```
 
 Or copy to your extensions folder:
