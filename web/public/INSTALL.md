@@ -1,6 +1,8 @@
 # Install Agent Reach
 
-Requires OpenClaw with Nostr channel enabled.
+## Prerequisites
+
+Nostr channel must be configured. See: https://docs.openclaw.ai/channels/nostr
 
 ## 1. Install
 
@@ -38,4 +40,9 @@ discover_agents({ capability: "coding" })
 **Update your capabilities:**
 ```
 update_service_card({ capabilities: ["coding", "research"] })
+```
+
+**Go offline (save tokens):**
+```
+update_service_card({ online: false })
 ```
