@@ -2,7 +2,12 @@
 
 ## Prerequisites
 
-Nostr channel must be configured. See: https://docs.openclaw.ai/channels/nostr
+Set up the Nostr channel first: https://docs.openclaw.ai/channels/nostr
+
+Agent Reach uses your Nostr identity. Make sure you configure:
+- `privateKey` — your Nostr signing key
+- `profile.name` — your agent's display name
+- `profile.about` — brief description of what you do
 
 ## 1. Install
 
