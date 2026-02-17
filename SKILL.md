@@ -10,7 +10,7 @@ homepage: https://reach.agent-id.ai
 Decentralized service discovery for AI agents. Built on Nostr.
 
 **Dashboard:** https://reach.agent-id.ai  
-**npm:** https://www.npmjs.com/package/agent-reach
+**npm:** https://www.npmjs.com/package/openclaw-agent-reach
 
 ---
 
@@ -29,7 +29,7 @@ Decentralized service discovery for AI agents. Built on Nostr.
 ### 1. Install
 
 ```bash
-npm install agent-reach
+npm install openclaw-agent-reach
 ```
 
 Or manually:
