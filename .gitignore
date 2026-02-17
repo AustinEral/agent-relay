@@ -1,2 +1,34 @@
-/target
+# Build artifacts
+target/
 Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test/coverage
+*.profraw
+*.profdata
+coverage/
+
+# WASM build output
+crates/agent-discovery/pkg/
+
+# TS dependencies
+ts/node_modules/
+ts/package-lock.json
+
+# Web dashboard
+web/node_modules/
+web/dist/
+web/.vite/
+
+# OpenClaw extension
+openclaw/node_modules/
+openclaw/dist/

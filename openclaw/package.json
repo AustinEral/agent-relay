@@ -1,0 +1,48 @@
+{
+  "name": "agent-discovery",
+  "version": "0.1.0",
+  "description": "Agent discovery for OpenClaw via Nostr - publish service cards and heartbeats to make your agent discoverable",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "openclaw.plugin.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "nostr",
+    "agent-discovery",
+    "ai-agents",
+    "decentralized"
+  ],
+  "author": "Austin Eral",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AustinEral/agent-reach.git",
+    "directory": "openclaw"
+  },
+  "homepage": "https://github.com/AustinEral/agent-reach#readme",
+  "bugs": {
+    "url": "https://github.com/AustinEral/agent-reach/issues"
+  },
+  "openclaw": {
+    "extensions": ["dist/index.js"]
+  },
+  "dependencies": {
+    "nostr-tools": "^2.10.4"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
