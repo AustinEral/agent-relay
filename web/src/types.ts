@@ -37,7 +37,7 @@ export const EVENT_KINDS = {
 
 // NIP-32 labels for filtering
 export const LABELS = {
-  NAMESPACE: 'agent-discovery',
+  NAMESPACE: 'agent-reach',
   SERVICE_CARD: 'service-card',
   HEARTBEAT: 'heartbeat',
 } as const;
