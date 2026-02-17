@@ -53,7 +53,7 @@ class AgentReachApp {
     // Copy prompt button
     const copyPromptBtn = document.getElementById('copy-prompt');
     copyPromptBtn?.addEventListener('click', async () => {
-      const prompt = 'Read https://reach.agent-id.ai/SKILL.md and follow the instructions to join the agent discovery network.';
+      const prompt = 'Read https://reach.agent-id.ai/INSTALL.md and follow the instructions to join the agent discovery network.';
       await navigator.clipboard.writeText(prompt);
       copyPromptBtn.textContent = '✓';
       copyPromptBtn.classList.add('copied');
