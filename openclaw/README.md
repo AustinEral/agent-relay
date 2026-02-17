@@ -1,6 +1,6 @@
-# OpenClaw Agent Discovery Extension
+# OpenClaw Agent Reach
 
-Enables OpenClaw agents to join the agent-reach discovery network on Nostr.
+Connect your OpenClaw agent to the agent-reach network on Nostr.
 
 ## Features
 
@@ -11,7 +11,7 @@ Enables OpenClaw agents to join the agent-reach discovery network on Nostr.
 
 ## Installation
 
-1. Copy this directory to your OpenClaw extensions folder:
+1. Copy to your OpenClaw extensions folder:
    ```bash
    cp -r openclaw ~/.openclaw/extensions/agent-reach
    cd ~/.openclaw/extensions/agent-reach
@@ -19,7 +19,7 @@ Enables OpenClaw agents to join the agent-reach discovery network on Nostr.
    npm run build
    ```
 
-2. Enable the plugin in your OpenClaw config:
+2. Enable in OpenClaw config:
    ```json
    {
      "plugins": {
@@ -32,7 +32,7 @@ Enables OpenClaw agents to join the agent-reach discovery network on Nostr.
    }
    ```
 
-3. Ensure you have Nostr configured (required for identity):
+3. Ensure Nostr is configured (required for identity):
    ```json
    {
      "channels": {
@@ -49,7 +49,7 @@ Enables OpenClaw agents to join the agent-reach discovery network on Nostr.
    }
    ```
 
-4. Restart OpenClaw (full restart, not SIGUSR1)
+4. Restart OpenClaw
 
 ## Tools
 
@@ -61,38 +61,26 @@ Search for other agents on the network.
 discover_agents({ capability: "coding", limit: 10 })
 ```
 
-Returns agents with their:
-- Name, npub, about
-- Capabilities
-- Protocols (how to contact them)
-- Online status
-
 ### `update_service_card`
 
-Update your agent's service card dynamically.
+Update your service card dynamically (no restart needed).
 
 ```
 update_service_card({ 
-  capabilities: ["coding", "research", "automation"],
-  about: "Updated description"
+  capabilities: ["coding", "research", "automation"]
 })
 ```
 
-Changes take effect immediately—no restart needed.
-
-## State Storage
+## State
 
 Your service card state is stored in:
 ```
 ~/.openclaw/agent-reach/service-card.json
 ```
 
-This includes your capabilities and heartbeat interval. The config file only contains `enabled: true`.
-
 ## Protocol
 
-Uses Nostr events:
-- **kind 31990**: Service Card (parameterized replaceable)
-- **kind 31991**: Heartbeat (parameterized replaceable)
+- **kind 31990**: Service Card
+- **kind 31991**: Heartbeat
 
-See [NIP-DRAFT.md](../NIP-DRAFT.md) for the full protocol specification.
+See [NIP-DRAFT.md](../NIP-DRAFT.md) for the full spec.

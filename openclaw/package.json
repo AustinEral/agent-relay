@@ -1,7 +1,7 @@
 {
-  "name": "agent-reach",
-  "version": "0.3.0",
-  "description": "Agent discovery for OpenClaw via Nostr - publish service cards and heartbeats to make your agent discoverable",
+  "name": "openclaw-agent-reach",
+  "version": "0.3.3",
+  "description": "Agent Reach for OpenClaw - connect to the decentralized agent network on Nostr",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,6 +19,7 @@
     "openclaw-plugin",
     "nostr",
     "agent-reach",
+    "agent-reach",
     "ai-agents",
     "decentralized"
   ],
@@ -34,9 +35,7 @@
     "url": "https://github.com/AustinEral/agent-reach/issues"
   },
   "openclaw": {
-    "extensions": [
-      "dist/index.js"
-    ]
+    "extensions": ["dist/index.js"]
   },
   "dependencies": {
     "nostr-tools": "^2.10.4"

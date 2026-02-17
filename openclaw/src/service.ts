@@ -98,7 +98,7 @@ export function createAgentDiscoveryService(_api: any) {
   let relays: string[] = DEFAULT_RELAYS;
   let nostrTools: any = null;
   let currentState: CardState | null = null;
-  let dmListenerHandle: { stop: () => void } | null = null;
+  // DM receiving handled by OpenClaw's native Nostr channel
 
   return {
     id: "agent-reach",
@@ -219,35 +219,10 @@ export function createAgentDiscoveryService(_api: any) {
         );
       }
 
-      // Start DM listener (workaround for OpenClaw bugs #3646 and #4547)
-      try {
-        const runtime = _api.runtime;
-        if (secretKey && publicKeyHex && runtime) {
-          const { startDmListener } = await import("./dm-listener.js");
-          dmListenerHandle = await startDmListener({
-            nostrTools,
-            secretKey,
-            publicKey: publicKeyHex,
-            relays,
-            stateDir: ctx.stateDir,
-            runtime,
-            logger: ctx.logger,
-          });
-        } else {
-          ctx.logger.warn("agent-reach: DM listener skipped (missing keys or runtime)");
-        }
-      } catch (err) {
-        ctx.logger.error(`agent-reach: DM listener failed to start: ${String(err)}`);
-      }
+      // Nostr DM receiving is handled by OpenClaw's native Nostr channel
     },
 
     async stop(ctx: ServiceContext) {
-      // Stop DM listener
-      if (dmListenerHandle) {
-        dmListenerHandle.stop();
-        dmListenerHandle = null;
-      }
-
       // Clear heartbeat interval
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
