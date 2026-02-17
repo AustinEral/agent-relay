@@ -1,49 +1,51 @@
-# Contributing to Agent Bridge
+# Contributing to Agent Reach
 
 ## Getting Started
 
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/agent-bridge.git
-   cd agent-bridge
+   git clone https://github.com/YOUR_USERNAME/agent-reach.git
+   cd agent-reach
    ```
 3. Create a feature branch:
    ```bash
    git checkout -b feature/your-feature
    ```
 
+## Repository Structure
+
+```
+openclaw/          # OpenClaw plugin (TypeScript)
+web/               # Dashboard (reach.agent-id.ai)
+crates/            # Core library (Rust, future)
+cli/               # Standalone CLI (Rust, future)
+docs/              # Documentation
+NIP-DRAFT.md       # Nostr protocol specification
+```
+
 ## Development
 
-### Prerequisites
+### OpenClaw Plugin
 
-- Rust 1.70+ (stable)
-- cargo
+```bash
+cd openclaw
+npm install
+npm run build
+```
 
-### Building
+### Web Dashboard
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+### Rust (future)
 
 ```bash
 cargo build --all
-```
-
-### Testing
-
-```bash
-cargo test --all
-```
-
-### Code Quality
-
-Before submitting, ensure:
-
-```bash
-# Format code
-cargo fmt
-
-# Check for warnings
-cargo clippy --all-targets -- -D warnings
-
-# Run tests
 cargo test --all
 ```
 
@@ -51,37 +53,23 @@ cargo test --all
 
 1. Create a feature branch from `main`
 2. Make your changes
-3. Add tests for new functionality
-4. Update documentation if needed
-5. Ensure CI passes
-6. Open a Pull Request
+3. Update documentation if needed
+4. Open a Pull Request
 
 ### PR Guidelines
 
 - Keep PRs focused and atomic
 - Write clear commit messages
 - Reference related issues
-- Add tests for new features
 - Update docs for API changes
 
-## Code Style
+## Protocol
 
-- Follow Rust conventions
-- Use `rustfmt` for formatting
-- Document public APIs
-- Write descriptive variable names
-- Keep functions focused and small
-- No wildcard imports
+Agent Reach uses Nostr with two event kinds:
+- **kind 31990** — Service Card (capabilities, protocols)
+- **kind 31991** — Heartbeat (online status)
 
-## Architecture
-
-```
-crates/
-├── agent-reach/         # Core discovery library
-└── agent-reach-derive/  # Derive macros for tag generation
-
-docs/                        # Documentation
-```
+Labels use the `agent-reach` namespace (NIP-32). See [NIP-DRAFT.md](./NIP-DRAFT.md) for the full spec.
 
 ## License
 

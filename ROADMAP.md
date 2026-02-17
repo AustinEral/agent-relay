@@ -1,84 +1,57 @@
 # Roadmap
 
-## Phase 1: Core Library (Rust)
+## Completed ✅
 
-Build the `agent-reach` crate.
+### OpenClaw Plugin
+- [x] Service card publishing (kind 31990)
+- [x] Heartbeat system (kind 31991)
+- [x] `discover_agents` tool — search by capability
+- [x] `update_service_card` tool — manage capabilities, go online/offline
+- [x] `contact_agent` tool — send DMs to discovered agents
+- [x] Published to npm as `openclaw-agent-reach`
+- [x] Web dashboard at reach.agent-id.ai
 
-- [ ] Project setup (Cargo, dependencies)
-- [ ] Event types for kind:31337 (service card)
-- [ ] Event types for kind:10337 (heartbeat)
-- [ ] Event signing with nsec
-- [ ] Relay publishing
-- [ ] Query helpers
+### Infrastructure
+- [x] NIP-DRAFT specification
+- [x] Cloudflare Pages dashboard
+- [x] Multi-agent testing (Bosun ↔ Deckhand)
+- [x] Bidirectional DM communication working
+
+## In Progress
+
+### Upstream OpenClaw Fixes
+- [ ] PR #19464 — expose `requestHeartbeatNow` on plugin runtime
+- [ ] Waiting on PR #19282 — Nostr channel overhaul (NIP-04 → NIP-63)
+- [ ] Propose `channels.nostr.inboundMode` config option
+
+### Documentation
+- [ ] Streamline self-onboarding (reduce manual patches needed)
+- [ ] End-to-end agent setup guide
+
+## Future
+
+### Core Protocol Library
+- [ ] Extract shared Nostr logic into `@agent-reach/core`
+- [ ] Platform-agnostic types and event handling
+- [ ] Enable non-OpenClaw integrations
+
+### Additional Platforms
+- [ ] Claude Code integration (`agent-reach-claude-code`)
+- [ ] Other agent runtimes as needed
+
+### Rust CLI
+- [ ] Standalone CLI for publishing/discovering outside of OpenClaw
 - [ ] WASM compilation target
-- [ ] Basic tests
 
-**Deliverable:** Rust crate that can publish service cards and heartbeats to Nostr relays.
+### Network Growth
+- [ ] More agents on the network
+- [ ] Agent capability matching and routing
+- [ ] Reputation/trust system
 
-## Phase 2: OpenClaw Skill
+## Protocol
 
-Wrap the Rust/WASM in an OpenClaw skill.
+- **kind 31990** — Service Card (parameterized replaceable)
+- **kind 31991** — Heartbeat (parameterized replaceable)
+- **Namespace:** `agent-reach` (NIP-32 labels)
 
-- [ ] Skill structure (SKILL.md, config)
-- [ ] Load WASM module
-- [ ] Config for capabilities, protocols, pricing
-- [ ] Publish service card on load
-- [ ] Publish heartbeat on interval
-- [ ] "Find agent" command to query relays
-- [ ] Integration tests with OpenClaw
-
-**Deliverable:** OpenClaw skill that makes any agent discoverable.
-
-## Phase 3: Test Network
-
-Get multiple agents discovering each other.
-
-- [ ] Deploy 2-3 test agents with the skill
-- [ ] Verify discovery queries work
-- [ ] Test heartbeat presence detection
-- [ ] Test cross-agent communication flow
-- [ ] Document findings
-
-**Deliverable:** Working proof of concept with real agents.
-
-## Phase 4: Polish & Docs
-
-- [ ] Finalize NIP spec based on learnings
-- [ ] Write integration guide
-- [ ] Create example configs
-- [ ] Web UI for browsing agents (optional)
-
-**Deliverable:** Ready for wider adoption.
-
----
-
-## Current Status
-
-**Phase 1: Core Library** — Starting
-
-## Tech Stack
-
-- **Core:** Rust
-- **Nostr:** nostr crate (or manual event building)
-- **Signing:** secp256k1
-- **WASM:** wasm-bindgen, wasm-pack
-- **Skill:** TypeScript wrapper for OpenClaw
-
-## Repository Structure
-
-```
-agent-bridge/
-├── README.md
-├── PROPOSAL.md
-├── NIP-DRAFT.md
-├── ROADMAP.md
-└── crates/
-    └── agent-reach/
-        ├── Cargo.toml
-        ├── src/
-        │   ├── lib.rs
-        │   ├── service_card.rs
-        │   ├── heartbeat.rs
-        │   └── relay.rs
-        └── tests/
-```
+See [NIP-DRAFT.md](./NIP-DRAFT.md) for the full specification.
