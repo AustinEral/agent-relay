@@ -48,6 +48,7 @@ interface CardState {
   heartbeatIntervalMs: number;
   name?: string;
   about?: string;
+  online?: boolean;  // false = paused heartbeats
 }
 
 interface Protocol {
@@ -65,6 +66,8 @@ let sharedServiceCardId: string | null = null;
 let sharedStateDir: string | null = null;
 let sharedLogger: ServiceContext["logger"] | null = null;
 let sharedConfig: any = null;
+let sharedHeartbeatInterval: any = null;
+let sharedCurrentState: CardState | null = null;
 
 const STATE_FILE = "service-card.json";
 
@@ -183,26 +186,37 @@ export function createAgentDiscoveryService(_api: any) {
         );
       }
 
-      // Start heartbeat interval
+      // Store state for update_service_card tool
+      sharedCurrentState = currentState;
+
+      // Start heartbeat interval (unless paused)
       const intervalMs = currentState.heartbeatIntervalMs;
+      const isOnline = currentState.online !== false;
 
-      // Send initial heartbeat
-      await sendHeartbeat(ctx, "available");
+      if (isOnline) {
+        // Send initial heartbeat
+        await sendHeartbeat(ctx, "available");
 
-      heartbeatInterval = setInterval(async () => {
-        try {
-          await sendHeartbeat(ctx, "available");
-          ctx.logger.debug("agent-reach: Sent heartbeat");
-        } catch (err) {
-          ctx.logger.warn(
-            `agent-reach: Heartbeat failed: ${String(err)}`
-          );
-        }
-      }, intervalMs);
+        heartbeatInterval = setInterval(async () => {
+          try {
+            await sendHeartbeat(ctx, "available");
+            ctx.logger.debug("agent-reach: Sent heartbeat");
+          } catch (err) {
+            ctx.logger.warn(
+              `agent-reach: Heartbeat failed: ${String(err)}`
+            );
+          }
+        }, intervalMs);
+        sharedHeartbeatInterval = heartbeatInterval;
 
-      ctx.logger.info(
-        `agent-reach: Started (heartbeat every ${intervalMs / 1000}s)`
-      );
+        ctx.logger.info(
+          `agent-reach: Started (heartbeat every ${intervalMs / 1000}s)`
+        );
+      } else {
+        ctx.logger.info(
+          `agent-reach: Started (heartbeats paused - offline mode)`
+        );
+      }
     },
 
     async stop(ctx: ServiceContext) {
@@ -210,6 +224,7 @@ export function createAgentDiscoveryService(_api: any) {
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
         heartbeatInterval = null;
+        sharedHeartbeatInterval = null;
       }
 
       // Send maintenance heartbeat
@@ -354,6 +369,7 @@ export async function updateServiceCard(params: {
   name?: string;
   about?: string;
   heartbeatIntervalMs?: number;
+  online?: boolean;
 }): Promise<{ success: boolean; message: string }> {
   if (!sharedPool || !sharedSecretKey || !sharedServiceCardId || !sharedStateDir || !sharedNostrTools) {
     return { success: false, message: "agent-reach service not running" };
@@ -361,6 +377,7 @@ export async function updateServiceCard(params: {
 
   // Load current state
   const state = await loadState(sharedStateDir);
+  const wasOnline = state.online !== false;
 
   // Update state with new values
   if (params.capabilities) {
@@ -374,6 +391,91 @@ export async function updateServiceCard(params: {
   }
   if (params.heartbeatIntervalMs !== undefined) {
     state.heartbeatIntervalMs = params.heartbeatIntervalMs;
+  }
+  if (params.online !== undefined) {
+    state.online = params.online;
+  }
+
+  const isOnline = state.online !== false;
+
+  // Handle online/offline state change
+  if (wasOnline && !isOnline) {
+    // Going offline - stop heartbeats
+    if (sharedHeartbeatInterval) {
+      clearInterval(sharedHeartbeatInterval);
+      sharedHeartbeatInterval = null;
+    }
+    // Send maintenance heartbeat
+    const maintenanceContent = JSON.stringify({ status: "maintenance" });
+    const maintenanceTags: string[][] = [
+      ["d", sharedServiceCardId],
+      ["s", "maintenance"],
+      ["L", "agent-reach"],
+      ["l", "heartbeat", "agent-reach"],
+    ];
+    const maintenanceEvent = sharedNostrTools.finalizeEvent(
+      {
+        kind: KIND_HEARTBEAT,
+        content: maintenanceContent,
+        tags: maintenanceTags,
+        created_at: Math.floor(Date.now() / 1000),
+      },
+      sharedSecretKey
+    );
+    const maintenancePromises = sharedPool.publish(sharedRelays, maintenanceEvent);
+    await Promise.allSettled(maintenancePromises);
+    sharedLogger?.info(`agent-reach: Going offline - heartbeats paused`);
+  } else if (!wasOnline && isOnline) {
+    // Coming online - restart heartbeats
+    const intervalMs = state.heartbeatIntervalMs || DEFAULT_HEARTBEAT_INTERVAL_MS;
+    
+    // Send immediate available heartbeat
+    const availableContent = JSON.stringify({ status: "available" });
+    const availableTags: string[][] = [
+      ["d", sharedServiceCardId],
+      ["s", "available"],
+      ["L", "agent-reach"],
+      ["l", "heartbeat", "agent-reach"],
+    ];
+    const availableEvent = sharedNostrTools.finalizeEvent(
+      {
+        kind: KIND_HEARTBEAT,
+        content: availableContent,
+        tags: availableTags,
+        created_at: Math.floor(Date.now() / 1000),
+      },
+      sharedSecretKey
+    );
+    const availablePromises = sharedPool.publish(sharedRelays, availableEvent);
+    await Promise.allSettled(availablePromises);
+
+    // Restart interval
+    sharedHeartbeatInterval = setInterval(async () => {
+      try {
+        const hbContent = JSON.stringify({ status: "available" });
+        const hbTags: string[][] = [
+          ["d", sharedServiceCardId!],
+          ["s", "available"],
+          ["L", "agent-reach"],
+          ["l", "heartbeat", "agent-reach"],
+        ];
+        const hbEvent = sharedNostrTools.finalizeEvent(
+          {
+            kind: KIND_HEARTBEAT,
+            content: hbContent,
+            tags: hbTags,
+            created_at: Math.floor(Date.now() / 1000),
+          },
+          sharedSecretKey
+        );
+        const hbPromises = sharedPool.publish(sharedRelays, hbEvent);
+        await Promise.allSettled(hbPromises);
+        sharedLogger?.debug("agent-reach: Sent heartbeat");
+      } catch (err) {
+        sharedLogger?.warn(`agent-reach: Heartbeat failed: ${String(err)}`);
+      }
+    }, intervalMs);
+    sharedLogger?.info(`agent-reach: Coming online - heartbeats resumed`);
   }
 
   // Save updated state

@@ -90,6 +90,10 @@ Changes take effect immediately and are published to Nostr relays.`,
         type: "number",
         description: "Heartbeat interval in milliseconds (default: 600000 = 10 minutes)",
       },
+      online: {
+        type: "boolean",
+        description: "Set to false to pause heartbeats (go offline), true to resume. Saves tokens when you don't need to be discoverable.",
+      },
     },
     required: [] as string[],
     additionalProperties: false,
@@ -99,6 +103,7 @@ Changes take effect immediately and are published to Nostr relays.`,
     name?: string;
     about?: string;
     heartbeatIntervalMs?: number;
+    online?: boolean;
   }) => {
     const result = await updateServiceCard(params);
     return jsonResult(result);
