@@ -1,6 +1,6 @@
 {
   "name": "agent-reach",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Agent discovery for OpenClaw via Nostr - publish service cards and heartbeats to make your agent discoverable",
   "type": "module",
   "main": "dist/index.js",
