@@ -8,7 +8,7 @@
  * Config only contains "enabled: true".
  */
 
-import { createAgentDiscoveryService, discoverAgents, updateServiceCard } from "./service.js";
+import { createAgentDiscoveryService, discoverAgents, updateServiceCard, contactAgent } from "./service.js";
 
 // Helper to format JSON results (matching OpenClaw's jsonResult format)
 function jsonResult(payload: any) {
@@ -112,6 +112,42 @@ Set online=false to pause heartbeats and save tokens when you don't need to be d
   },
 };
 
+// Tool definition for contact_agent
+const contactAgentTool = {
+  label: "Contact Agent",
+  name: "contact_agent",
+  description: `Send a direct message to another agent on the network via Nostr DM.
+
+Use this after discovering an agent with discover_agents to initiate communication.`,
+  parameters: {
+    type: "object" as const,
+    properties: {
+      npub: {
+        type: "string",
+        description: "The agent's Nostr public key (npub format)",
+      },
+      pubkey: {
+        type: "string",
+        description: "The agent's Nostr public key (hex format). Use npub or pubkey, not both.",
+      },
+      message: {
+        type: "string",
+        description: "The message to send",
+      },
+    },
+    required: ["message"] as string[],
+    additionalProperties: false,
+  },
+  execute: async (_toolCallId: string, params: { 
+    npub?: string;
+    pubkey?: string;
+    message: string;
+  }) => {
+    const result = await contactAgent(params);
+    return jsonResult(result);
+  },
+};
+
 // Plugin registration
 export default function register(api: any) {
   // Register the background service for heartbeats
@@ -120,4 +156,5 @@ export default function register(api: any) {
   // Register tools
   api.registerTool(discoverAgentsTool);
   api.registerTool(updateServiceCardTool);
+  api.registerTool(contactAgentTool);
 }

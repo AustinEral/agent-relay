@@ -666,3 +666,71 @@ export async function discoverAgents(params: {
   // Return without internal cardId field
   return agents.map(({ cardId, ...rest }) => rest);
 }
+
+/**
+ * Contact an agent via Nostr DM
+ * Sends a NIP-04 encrypted direct message
+ */
+export async function contactAgent(params: {
+  npub?: string;
+  pubkey?: string;
+  message: string;
+}): Promise<{ success: boolean; message: string; eventId?: string }> {
+  if (!sharedPool || !sharedSecretKey || !sharedNostrTools) {
+    return { success: false, message: "agent-reach service not running" };
+  }
+
+  if (!params.message) {
+    return { success: false, message: "Message is required" };
+  }
+
+  // Get recipient pubkey
+  let recipientPubkey: string;
+  if (params.pubkey) {
+    recipientPubkey = params.pubkey;
+  } else if (params.npub) {
+    try {
+      const decoded = sharedNostrTools.nip19.decode(params.npub);
+      if (decoded.type !== "npub") {
+        return { success: false, message: "Invalid npub format" };
+      }
+      recipientPubkey = decoded.data as string;
+    } catch (err) {
+      return { success: false, message: `Invalid npub: ${String(err)}` };
+    }
+  } else {
+    return { success: false, message: "Either npub or pubkey is required" };
+  }
+
+  try {
+    // Encrypt message using NIP-04
+    const nip04 = sharedNostrTools.nip04;
+    const encrypted = await nip04.encrypt(sharedSecretKey, recipientPubkey, params.message);
+
+    // Create DM event (kind 4)
+    const event = sharedNostrTools.finalizeEvent(
+      {
+        kind: 4,
+        content: encrypted,
+        tags: [["p", recipientPubkey]],
+        created_at: Math.floor(Date.now() / 1000),
+      },
+      sharedSecretKey
+    );
+
+    // Publish to relays
+    const promises = sharedPool.publish(sharedRelays, event);
+    await Promise.allSettled(promises);
+
+    sharedLogger?.info(`agent-reach: Sent DM to ${params.npub || recipientPubkey.slice(0, 8)}...`);
+
+    return { 
+      success: true, 
+      message: `Message sent to ${params.npub || recipientPubkey.slice(0, 8)}...`,
+      eventId: event.id
+    };
+  } catch (err) {
+    sharedLogger?.error(`agent-reach: Failed to send DM: ${String(err)}`);
+    return { success: false, message: `Failed to send: ${String(err)}` };
+  }
+}
