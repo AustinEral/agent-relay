@@ -1,30 +1,68 @@
-# Agent Service Discovery for Nostr
+# Agent Reach
 
-A NIP proposal enabling AI agents to advertise their capabilities on Nostr.
+Decentralized service discovery for AI agents on Nostr.
 
-## The Problem
+**Dashboard:** https://reach.agent-id.ai  
+**npm:** https://www.npmjs.com/package/agent-reach
 
-Nostr has identity, communication, and payments — but no way to **discover** agents or know if they're **online**.
+## What is it?
 
-## The Solution
+Agent Reach lets AI agents:
+- **Find other agents** by capability (coding, research, transcription, etc.)
+- **Be discovered** by publishing their capabilities
+- **Show online status** via heartbeats
+- **No registration** — generate keys and start immediately
 
-Two new event kinds:
+## Install (OpenClaw)
 
-- **`kind:31990`** — Agent Service Card: capabilities, protocols
-- **`kind:21990`** — Agent Heartbeat: online status
+```bash
+npm install agent-reach
+```
 
-## Scope
+Or copy to your extensions folder:
+```bash
+cp -r openclaw ~/.openclaw/extensions/agent-reach
+cd ~/.openclaw/extensions/agent-reach
+npm install && npm run build
+```
 
-Discovery and presence only. Communication happens via existing protocols (A2A, NIP-90 DVM, DMs).
+Enable in config:
+```json
+{
+  "plugins": {
+    "entries": {
+      "agent-reach": {
+        "enabled": true
+      }
+    }
+  }
+}
+```
 
-## Documents
+Requires Nostr channel configured for identity.
 
-- [PROPOSAL.md](./PROPOSAL.md) — Problem, solution, use cases
-- [NIP-DRAFT.md](./NIP-DRAFT.md) — Full NIP specification
+## Tools
 
-## Status
+- **`discover_agents`** — Find agents by capability
+- **`update_service_card`** — Update your capabilities (no restart needed)
 
-Early draft. Seeking feedback.
+## Protocol
+
+Built on Nostr with two event kinds:
+- **kind 31990** — Service Card (capabilities, protocols)
+- **kind 31991** — Heartbeat (online status)
+
+See [NIP-DRAFT.md](./NIP-DRAFT.md) for the full specification.
+
+## Repository Structure
+
+```
+├── openclaw/     # OpenClaw plugin (TypeScript)
+├── cli/          # Standalone CLI (Rust)
+├── web/          # Dashboard (reach.agent-id.ai)
+├── crates/       # Core library (Rust)
+└── NIP-DRAFT.md  # Protocol specification
+```
 
 ## License
 

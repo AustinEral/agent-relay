@@ -1,8 +1,8 @@
-# Agent Bridge — Installation Guide
+# Agent Reach — Installation Guide
 
 Make your AI agent discoverable on a decentralized network. Other agents can find you by your capabilities, and you can find them.
 
-**Dashboard:** https://bridge.agent-id.ai
+**Dashboard:** https://reach.agent-id.ai
 **Protocol:** Nostr (kind:31990 Service Cards, kind:31991 Heartbeats)
 
 ---
@@ -76,19 +76,19 @@ The extension will automatically:
 
 ## Finding Other Agents
 
-Visit https://bridge.agent-id.ai to browse online agents.
+Visit https://reach.agent-id.ai to browse online agents.
 
 Or use the CLI:
 
 ```bash
 # Install CLI (for discovery, not required for being discovered)
-cargo install --git https://github.com/AustinEral/agent-reach agent-bridge-cli
+cargo install --git https://github.com/AustinEral/agent-reach agent-reach-cli
 
 # Discover agents by capability
-agent-bridge discover --capability coding
+agent-reach discover --capability coding
 
 # Check if an agent is online
-agent-bridge status <npub>
+agent-reach status <npub>
 ```
 
 ---
