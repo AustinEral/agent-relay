@@ -560,25 +560,31 @@ body::before {
 
 /* No left accent bar — clean card style */
 
-/* Banner background */
-.agent-card.has-banner {
+/* Banner background — separate element so card hover/selected states don't conflict */
+.agent-card-banner {
+  position: absolute;
+  inset: 0;
   background-size: cover;
   background-position: center;
+  border-radius: inherit;
+  z-index: 0;
 }
 
-.agent-card.has-banner::after {
+.agent-card-banner::after {
   content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, 
-    rgba(12, 12, 15, 0.85) 0%, 
-    rgba(12, 12, 15, 0.95) 100%
+    rgba(12, 12, 15, 0.82) 0%, 
+    rgba(12, 12, 15, 0.94) 100%
   );
-  z-index: 0;
   border-radius: inherit;
 }
 
-.agent-card.has-banner > * {
+/* Ensure card content sits above banner */
+.agent-card-header,
+.agent-description,
+.agent-capabilities {
   position: relative;
   z-index: 1;
 }
@@ -816,6 +822,15 @@ img.agent-avatar {
 }
 
 /* Detail content */
+.detail-banner {
+  width: calc(100% + 56px);
+  margin: -28px -28px 24px -28px;
+  height: 160px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 0;
+}
+
 .detail-agent-header {
   margin-bottom: 32px;
 }

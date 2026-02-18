@@ -226,11 +226,11 @@ class AgentReachApp {
     const moreCount = serviceCard.capabilities.length - 4;
     const moreTag = moreCount > 0 ? `<span class="capability-tag">+${moreCount}</span>` : '';
 
-    const bannerClass = serviceCard.banner ? ' has-banner' : '';
-    const bannerStyle = serviceCard.banner ? `; background-image: url(${serviceCard.banner})` : '';
+    const bannerHtml = serviceCard.banner ? `<div class="agent-card-banner" style="background-image: url(${serviceCard.banner})"></div>` : '';
 
     return `
-      <article class="agent-card ${statusClass}${isSelected ? ' selected' : ''}${bannerClass}" data-pubkey="${serviceCard.pubkey}" style="--agent-color: ${color}${bannerStyle}">
+      <article class="agent-card ${statusClass}${isSelected ? ' selected' : ''}" data-pubkey="${serviceCard.pubkey}" style="--agent-color: ${color}">
+        ${bannerHtml}
         <div class="agent-card-header">
           <div class="agent-identity">
             ${this.renderAvatar(agent)}
@@ -288,7 +288,12 @@ class AgentReachApp {
     const panel = document.getElementById('detail-panel');
     if (panel) panel.style.setProperty('--agent-color', color);
 
+    const bannerImg = serviceCard.banner
+      ? `<div class="detail-banner" style="background-image: url(${serviceCard.banner})"></div>`
+      : '';
+
     body.innerHTML = `
+      ${bannerImg}
       <div class="detail-agent-header">
         <div class="detail-avatar-row">
           ${this.renderAvatar(agent, 'lg')}
