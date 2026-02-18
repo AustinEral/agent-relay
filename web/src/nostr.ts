@@ -61,6 +61,9 @@ export class NostrClient {
     // Single render with complete data
     this.notifyAgentUpdate();
     
+    // Fetch profile pictures (non-blocking, updates cards as they arrive)
+    this.queryProfiles();
+    
     // Mark relays as connected
     for (const relay of this.relays) {
       this.relayStatuses.set(relay, { url: relay, connected: true });
@@ -127,6 +130,52 @@ export class NostrClient {
     }
   }
 
+  private async queryProfiles(): Promise<void> {
+    const pubkeys = Array.from(this.agents.keys());
+    if (pubkeys.length === 0) return;
+    
+    console.log('[NostrClient] Querying profiles for', pubkeys.length, 'agents');
+    try {
+      const events = await this.pool.querySync(this.relays, {
+        kinds: [0],  // NIP-01 metadata
+        authors: pubkeys,
+      });
+      
+      console.log(`[NostrClient] Found ${events.length} profile events`);
+      
+      // Keep only the latest kind 0 per pubkey
+      const latest = new Map<string, NostrEvent>();
+      for (const event of events) {
+        const existing = latest.get(event.pubkey);
+        if (!existing || event.created_at > existing.created_at) {
+          latest.set(event.pubkey, event);
+        }
+      }
+      
+      let updated = false;
+      for (const [pubkey, event] of latest) {
+        try {
+          const profile = JSON.parse(event.content);
+          const agent = this.agents.get(pubkey);
+          if (agent) {
+            // Only use profile picture if no avatar set via service card tag
+            if (profile.picture && !agent.serviceCard.picture) {
+              agent.serviceCard.picture = profile.picture;
+              updated = true;
+              console.log('[NostrClient] Got profile picture for', agent.serviceCard.name);
+            }
+          }
+        } catch {
+          // Invalid JSON in profile, skip
+        }
+      }
+      
+      if (updated) this.notifyAgentUpdate();
+    } catch (e) {
+      console.error('[NostrClient] Failed to query profiles:', e);
+    }
+  }
+
   private subscribeToServiceCards(): void {
     const filter = {
       kinds: [EVENT_KINDS.SERVICE_CARD],
@@ -181,6 +230,9 @@ export class NostrClient {
       let dTag = 'default';
       let name = 'Unknown Agent';
       let about = '';
+      let color: string | undefined;
+      let avatar: string | undefined;
+      let banner: string | undefined;
       const capabilities: string[] = [];
       
       for (const tag of event.tags) {
@@ -192,6 +244,12 @@ export class NostrClient {
           about = tag[1];
         } else if (tag[0] === 'c' && tag[1]) {
           capabilities.push(tag[1]);
+        } else if (tag[0] === 'color' && tag[1]) {
+          color = tag[1];
+        } else if (tag[0] === 'avatar' && tag[1]) {
+          avatar = tag[1];
+        } else if (tag[0] === 'banner' && tag[1]) {
+          banner = tag[1];
         }
       }
       
@@ -205,6 +263,9 @@ export class NostrClient {
         capabilities,
         version: '1.0',
         createdAt: new Date(event.created_at * 1000),
+        color,
+        picture: avatar,  // Service card avatar takes priority, profile pic is fallback
+        banner,
       };
 
       console.log('[NostrClient] Parsed service card:', name, 'caps:', capabilities, 'pubkey:', event.pubkey.slice(0, 8));

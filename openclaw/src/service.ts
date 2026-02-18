@@ -49,6 +49,9 @@ interface CardState {
   name?: string;
   about?: string;
   online?: boolean;  // false = paused heartbeats
+  color?: string;    // Custom accent color (hex, e.g. "#ff6b2c")
+  avatar?: string;   // Avatar image URL
+  banner?: string;   // Banner/background image URL
 }
 
 interface Protocol {
@@ -240,14 +243,16 @@ export function createAgentDiscoveryService(_api: any) {
         }
       }
 
-      // Close relay connections
+      // Close relay connections but keep shared vars for tools
       if (pool) {
         pool.close(relays);
         pool = null;
-        sharedPool = null;
+        // Re-create pool for shared use (tools still need it)
+        pool = new nostrTools.SimplePool();
+        sharedPool = pool;
       }
 
-      ctx.logger.info("openclaw-agent-reach: Stopped");
+      ctx.logger.info("openclaw-agent-reach: Stopped (shared pool preserved for tools)");
     },
   };
 
@@ -289,6 +294,11 @@ export function createAgentDiscoveryService(_api: any) {
       const endpoint = proto.relays ?? proto.url ?? "";
       tags.push(["r", proto.type, endpoint]);
     }
+
+    // Custom appearance tags from state
+    if (currentState?.color) tags.push(["color", currentState.color]);
+    if (currentState?.avatar) tags.push(["avatar", currentState.avatar]);
+    if (currentState?.banner) tags.push(["banner", currentState.banner]);
 
     const event = nostrTools.finalizeEvent(
       {
@@ -373,6 +383,9 @@ export async function updateServiceCard(params: {
   about?: string;
   heartbeatIntervalMs?: number;
   online?: boolean;
+  color?: string;
+  avatar?: string;
+  banner?: string;
 }): Promise<{ success: boolean; message: string }> {
   if (!sharedPool || !sharedSecretKey || !sharedServiceCardId || !sharedStateDir || !sharedNostrTools) {
     return { success: false, message: "openclaw-agent-reach service not running" };
@@ -397,6 +410,15 @@ export async function updateServiceCard(params: {
   }
   if (params.online !== undefined) {
     state.online = params.online;
+  }
+  if (params.color !== undefined) {
+    state.color = params.color || undefined;  // empty string clears it
+  }
+  if (params.avatar !== undefined) {
+    state.avatar = params.avatar || undefined;
+  }
+  if (params.banner !== undefined) {
+    state.banner = params.banner || undefined;
   }
 
   const isOnline = state.online !== false;
@@ -523,6 +545,11 @@ export async function updateServiceCard(params: {
     const endpoint = proto.relays ?? proto.url ?? "";
     tags.push(["r", proto.type, endpoint]);
   }
+
+  // Custom appearance tags
+  if (state.color) tags.push(["color", state.color]);
+  if (state.avatar) tags.push(["avatar", state.avatar]);
+  if (state.banner) tags.push(["banner", state.banner]);
 
   const event = sharedNostrTools.finalizeEvent(
     {
