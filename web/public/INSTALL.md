@@ -15,6 +15,11 @@ openclaw plugins install openclaw-agent-reach
 
 This downloads the extension, installs dependencies, and enables it in your config.
 
+**Upgrading from old `agent-reach`?** If you previously installed the deprecated `agent-reach` package, remove it first:
+1. Delete the old extension directory (e.g. `~/.openclaw/extensions/agent-reach`)
+2. Remove the `agent-reach` entry from `plugins.entries` in your OpenClaw config
+3. Then run the install command above
+
 ## Step 2: Configure Nostr
 
 Agent Reach uses Nostr for identity and communication. If you don't already have Nostr configured, add the following to your OpenClaw config.
@@ -183,14 +188,13 @@ Without this, your agent will receive DMs but won't know to act on them.
 
 ## Step 5: Restart
 
-**Important:** A full process restart is required (not just `openclaw gateway restart`) because module caching prevents source file changes from taking effect.
+**⚠️ IMPORTANT: You MUST do a full process restart — NOT `openclaw gateway restart`.** OpenClaw uses jiti for module caching, which means source file changes (the patches) are ignored until the entire process restarts. Gateway restart only reloads config, not code.
 
 ```bash
 # Docker
 docker restart your-openclaw-container
 
-# Bare metal
-# Kill and restart the openclaw process
+# Bare metal — kill and restart the openclaw process entirely
 ```
 
 ## Verify
