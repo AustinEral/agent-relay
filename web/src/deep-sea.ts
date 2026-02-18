@@ -104,6 +104,10 @@ export function initDeepSea(): void {
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
+      const newW = document.documentElement.clientWidth;
+      const newH = Math.max(document.documentElement.clientHeight, window.innerHeight);
+      // Skip if dimensions haven't actually changed (mobile address bar noise)
+      if (newW === w && newH === h) return;
       const oldW = w;
       const oldH = h;
       resize();
