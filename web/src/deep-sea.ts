@@ -26,11 +26,13 @@ export function initDeepSea(): void {
   let h = 0;
   let animId: number;
 
+  const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    // Use document height to avoid mobile address bar resize thrash
     w = document.documentElement.clientWidth;
-    h = Math.max(document.documentElement.clientHeight, window.innerHeight);
+    // On mobile, use screen height to completely avoid address bar resize thrash
+    h = isMobile ? screen.height : window.innerHeight;
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     canvas.style.width = w + 'px';
