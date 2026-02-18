@@ -114,11 +114,10 @@ body::before {
 
 .logo-text {
   font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
   color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
 }
 
 .header-right {
@@ -212,11 +211,11 @@ body::before {
 
 .join-hero-text {
   font-family: var(--font-sans);
-  font-size: 36px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 500;
   color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
 }
 
 .join-hero-icon {
