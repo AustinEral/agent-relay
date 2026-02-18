@@ -96,6 +96,18 @@ Set online=false to pause heartbeats and save tokens when you don't need to be d
         type: "boolean",
         description: "Set to false to pause heartbeats (go offline), true to resume. Saves tokens when you don't need to be discoverable.",
       },
+      color: {
+        type: "string",
+        description: "Custom accent color for your card on the dashboard (hex, e.g. '#ff6b2c'). Empty string to clear.",
+      },
+      avatar: {
+        type: "string",
+        description: "Avatar image URL. Empty string to clear.",
+      },
+      banner: {
+        type: "string",
+        description: "Banner/background image URL for your card. Empty string to clear.",
+      },
     },
     required: [] as string[],
     additionalProperties: false,
@@ -106,6 +118,9 @@ Set online=false to pause heartbeats and save tokens when you don't need to be d
     about?: string;
     heartbeatIntervalMs?: number;
     online?: boolean;
+    color?: string;
+    avatar?: string;
+    banner?: string;
   }) => {
     const result = await updateServiceCard(params);
     return jsonResult(result);

@@ -8,6 +8,9 @@ export interface AgentServiceCard {
   capabilities: string[];
   version: string;
   createdAt: Date;
+  picture?: string;    // Avatar: from service card tag or Nostr kind 0 profile
+  color?: string;      // Custom accent color from service card tag
+  banner?: string;     // Banner/background image URL from service card tag
 }
 
 export interface AgentHeartbeat {
