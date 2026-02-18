@@ -28,13 +28,14 @@ export function initDeepSea(): void {
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    w = window.innerWidth;
-    h = window.innerHeight;
+    // Use document height to avoid mobile address bar resize thrash
+    w = document.documentElement.clientWidth;
+    h = Math.max(document.documentElement.clientHeight, window.innerHeight);
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
-    ctx!.scale(dpr, dpr);
+    ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   function createParticles() {
@@ -97,9 +98,23 @@ export function initDeepSea(): void {
   createParticles();
   animId = requestAnimationFrame(draw);
 
+  // Debounce resize — don't recreate particles, just rescale canvas.
+  // Particles that end up out of bounds will naturally wrap back in.
+  let resizeTimer: ReturnType<typeof setTimeout>;
   window.addEventListener('resize', () => {
-    resize();
-    createParticles();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const oldW = w;
+      const oldH = h;
+      resize();
+      // Scale existing particle positions proportionally instead of recreating
+      if (oldW && oldH) {
+        for (const p of particles) {
+          p.x = (p.x / oldW) * w;
+          p.y = (p.y / oldH) * h;
+        }
+      }
+    }, 150);
   });
 
   // Pause when tab hidden
