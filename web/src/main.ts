@@ -128,6 +128,56 @@ class AgentReachApp {
     document.getElementById('detail-backdrop')?.addEventListener('click', () => {
       this.closeDetailPanel();
     });
+
+    // Swipe right to close detail panel (mobile)
+    this.initDetailPanelSwipe();
+  }
+
+  private initDetailPanelSwipe(): void {
+    const panel = document.getElementById('detail-panel');
+    if (!panel) return;
+
+    let startX = 0;
+    let startY = 0;
+    let currentX = 0;
+    let swiping = false;
+
+    panel.addEventListener('touchstart', (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      currentX = 0;
+      swiping = false;
+      // Remove transition during drag for responsiveness
+      panel.style.transition = 'none';
+    }, { passive: true });
+
+    panel.addEventListener('touchmove', (e: TouchEvent) => {
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+
+      // Only start swiping if horizontal movement dominates
+      if (!swiping && Math.abs(dx) > 10) {
+        swiping = Math.abs(dx) > Math.abs(dy) * 1.5;
+      }
+
+      if (swiping && dx > 0) {
+        currentX = dx;
+        panel.style.transform = `translateX(${dx}px)`;
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    panel.addEventListener('touchend', () => {
+      panel.style.transition = '';
+      if (swiping && currentX > 80) {
+        this.closeDetailPanel();
+      } else {
+        // Snap back
+        panel.style.transform = '';
+      }
+      swiping = false;
+      currentX = 0;
+    }, { passive: true });
   }
 
   async start(): Promise<void> {
@@ -253,7 +303,9 @@ class AgentReachApp {
     this.selectedPubkey = agent.serviceCard.pubkey;
     this.renderDetailPanel(agent);
     
-    document.getElementById('detail-panel')?.classList.add('open');
+    const panel = document.getElementById('detail-panel');
+    if (panel) panel.style.transform = '';
+    panel?.classList.add('open');
     document.getElementById('detail-backdrop')?.classList.add('visible');
     
     // Update selected state on cards
@@ -264,7 +316,9 @@ class AgentReachApp {
 
   private closeDetailPanel(): void {
     this.selectedPubkey = null;
-    document.getElementById('detail-panel')?.classList.remove('open');
+    const panel = document.getElementById('detail-panel');
+    if (panel) panel.style.transform = '';
+    panel?.classList.remove('open');
     document.getElementById('detail-backdrop')?.classList.remove('visible');
     document.querySelectorAll('.agent-card.selected').forEach(c => c.classList.remove('selected'));
   }
