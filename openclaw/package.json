@@ -1,6 +1,6 @@
 {
   "name": "openclaw-agent-reach",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Agent Reach for OpenClaw - connect to the decentralized agent network on Nostr",
   "type": "module",
   "main": "dist/index.js",

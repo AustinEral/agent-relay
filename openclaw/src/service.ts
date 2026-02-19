@@ -1,57 +1,72 @@
 /**
- * Agent Discovery Service
+ * Agent Reach Service — v0.5.0
  *
- * Handles service card publishing and heartbeat intervals.
- * State is stored in stateDir, not config.
+ * Self-contained agent discovery and communication over Nostr.
+ * Owns its own private key, relay connections, and DM handling.
+ * No dependency on OpenClaw's Nostr channel plugin.
+ *
+ * Responsibilities:
+ * - Publish service cards (kind 31990) for discovery
+ * - Send heartbeats (kind 31991) to signal availability
+ * - Send/receive NIP-04 encrypted DMs to/from allowed agents
+ * - Inject inbound DMs as system events for the agent to process
  */
 
-// Declared functions - loaded at runtime
 declare function require(id: string): any;
 const fs = require("fs/promises");
 const path = require("path");
-const readFile = fs.readFile;
-const writeFile = fs.writeFile;
-const mkdir = fs.mkdir;
-const join = path.join;
+const url = require("url");
 
-// Event kinds for agent discovery (matching NIP-DRAFT)
+// ── Constants ──────────────────────────────────────────────────────────
+
 const KIND_SERVICE_CARD = 31990;
 const KIND_HEARTBEAT = 31991;
+const KIND_DM = 4; // NIP-04
 
-// Default relays
 const DEFAULT_RELAYS = [
   "wss://relay.damus.io",
   "wss://nos.lol",
   "wss://relay.nostr.band",
 ];
 
-// Default heartbeat interval (10 minutes)
-const DEFAULT_HEARTBEAT_INTERVAL_MS = 600_000;
+const DEFAULT_HEARTBEAT_MS = 600_000; // 10 minutes
+const STATE_FILE = "service-card.json";
 
-// Default capabilities
-const DEFAULT_CAPABILITIES: Array<{ id: string; description: string }> = [];
+// ── Types ──────────────────────────────────────────────────────────────
+
+interface PluginConfig {
+  privateKey: string;
+  relays?: string[];
+  allowFrom?: string[];
+}
 
 interface ServiceContext {
-  config: any;
-  workspaceDir: string;
+  config: any; // Full OpenClaw config (we only read our plugin config)
   stateDir: string;
-  logger: {
-    info: (msg: string) => void;
-    warn: (msg: string) => void;
-    error: (msg: string) => void;
-    debug: (msg: string) => void;
-  };
+  logger: Logger;
+}
+
+interface Logger {
+  info: (msg: string) => void;
+  warn: (msg: string) => void;
+  error: (msg: string) => void;
+  debug: (msg: string) => void;
 }
 
 interface CardState {
-  capabilities: Array<{ id: string; description: string }>;
+  capabilities: Capability[];
   heartbeatIntervalMs: number;
   name?: string;
   about?: string;
-  online?: boolean;  // false = paused heartbeats
-  color?: string;    // Custom accent color (hex, e.g. "#ff6b2c")
-  avatar?: string;   // Avatar image URL
-  banner?: string;   // Banner/background image URL
+  online?: boolean;
+  color?: string;
+  avatar?: string;
+  banner?: string;
+}
+
+interface Capability {
+  id: string;
+  description: string;
 }
 
 interface Protocol {
@@ -60,312 +75,52 @@ interface Protocol {
   url?: string;
 }
 
-// Shared state for the discovery tool and update tool
-let sharedPool: any = null;
-let sharedRelays: string[] = DEFAULT_RELAYS;
-let sharedNostrTools: any = null;
-let sharedSecretKey: Uint8Array | null = null;
-let sharedServiceCardId: string | null = null;
-let sharedStateDir: string | null = null;
-let sharedLogger: ServiceContext["logger"] | null = null;
-let sharedConfig: any = null;
-let sharedHeartbeatInterval: any = null;
-let sharedCurrentState: CardState | null = null;
+// ── Shared runtime state ───────────────────────────────────────────────
+// Accessible by exported tool functions (discover, contact, update)
 
-const STATE_FILE = "service-card.json";
+let rt: {
+  pool: any;
+  nostr: any;
+  secretKey: Uint8Array;
+  publicKeyHex: string;
+  relays: string[];
+  allowFrom: Set<string>; // normalized hex pubkeys
+  serviceCardId: string;
+  stateDir: string;
+  logger: Logger;
+  state: CardState;
+  heartbeatTimer: any;
+  dmSub: any; // subscription handle for inbound DMs
+} | null = null;
+
+// ── State persistence ──────────────────────────────────────────────────
 
 async function loadState(stateDir: string): Promise<CardState> {
   try {
-    const data = await readFile(join(stateDir, STATE_FILE), "utf-8");
+    const data = await fs.readFile(path.join(stateDir, STATE_FILE), "utf-8");
     return JSON.parse(data);
   } catch {
-    // Return defaults if file doesn't exist
-    return {
-      capabilities: DEFAULT_CAPABILITIES,
-      heartbeatIntervalMs: DEFAULT_HEARTBEAT_INTERVAL_MS,
-    };
+    return { capabilities: [], heartbeatIntervalMs: DEFAULT_HEARTBEAT_MS };
   }
 }
 
 async function saveState(stateDir: string, state: CardState): Promise<void> {
-  await mkdir(stateDir, { recursive: true });
-  await writeFile(join(stateDir, STATE_FILE), JSON.stringify(state, null, 2));
+  await fs.mkdir(stateDir, { recursive: true });
+  await fs.writeFile(path.join(stateDir, STATE_FILE), JSON.stringify(state, null, 2));
 }
 
-export function createAgentDiscoveryService(_api: any) {
-  let pool: any = null;
-  let heartbeatInterval: any = null;
-  let secretKey: Uint8Array | null = null;
-  let publicKeyHex: string | null = null;
-  let serviceCardId: string | null = null;
-  let relays: string[] = DEFAULT_RELAYS;
-  let nostrTools: any = null;
-  let currentState: CardState | null = null;
-  // DM receiving handled by OpenClaw's native Nostr channel
+// ── Key parsing ────────────────────────────────────────────────────────
 
-  return {
-    id: "openclaw-agent-reach",
-
-    async start(ctx: ServiceContext) {
-      // Dynamically import nostr-tools
-      try {
-        nostrTools = await import("nostr-tools");
-        sharedNostrTools = nostrTools;
-      } catch (err) {
-        ctx.logger.error(`openclaw-agent-reach: Failed to load nostr-tools: ${String(err)}`);
-        return;
-      }
-
-      const config = ctx.config;
-      sharedConfig = config;
-
-      // Get Nostr identity from channels.nostr config
-      const nostrConfig = config?.channels?.nostr;
-      if (!nostrConfig?.privateKey) {
-        ctx.logger.warn(
-          "openclaw-agent-reach: No Nostr private key configured (channels.nostr.privateKey)"
-        );
-        return;
-      }
-
-      // Parse private key (hex or nsec)
-      try {
-        secretKey = parsePrivateKey(nostrConfig.privateKey, nostrTools);
-        publicKeyHex = nostrTools.getPublicKey(secretKey);
-        sharedSecretKey = secretKey;
-      } catch (err) {
-        ctx.logger.error(
-          `openclaw-agent-reach: Invalid private key: ${String(err)}`
-        );
-        return;
-      }
-
-      // Set up relays from nostr channel config
-      relays = nostrConfig.relays ?? DEFAULT_RELAYS;
-      sharedRelays = relays;
-
-      // Generate service card ID
-      serviceCardId = `${publicKeyHex!.slice(0, 8)}-v1`;
-      sharedServiceCardId = serviceCardId;
-      sharedStateDir = ctx.stateDir;
-      sharedLogger = ctx.logger;
-
-      // Create relay pool
-      pool = new nostrTools.SimplePool();
-      sharedPool = pool;
-
-      // Load state from file
-      currentState = await loadState(ctx.stateDir);
-
-      // Build protocols based on what's configured
-      const protocols: Protocol[] = [];
-      
-      // If Nostr channel is enabled, advertise DM protocol
-      if (nostrConfig.enabled !== false) {
-        protocols.push({
-          type: "dm",
-          relays: relays.join(","),
-        });
-      }
-
-      // Use name/about from state, fall back to nostr profile
-      const name = currentState.name ?? nostrConfig.profile?.name ?? "Agent";
-      const about = currentState.about ?? nostrConfig.profile?.about ?? "";
-
-      // Publish service card
-      try {
-        await publishServiceCard(ctx, {
-          id: serviceCardId!,
-          name,
-          about,
-          capabilities: currentState.capabilities,
-          protocols,
-        });
-        ctx.logger.info(
-          `openclaw-agent-reach: Published service card (${serviceCardId})`
-        );
-      } catch (err) {
-        ctx.logger.error(
-          `openclaw-agent-reach: Failed to publish service card: ${String(err)}`
-        );
-      }
-
-      // Store state for update_service_card tool
-      sharedCurrentState = currentState;
-
-      // Start heartbeat interval (unless paused)
-      const intervalMs = currentState.heartbeatIntervalMs;
-      const isOnline = currentState.online !== false;
-
-      if (isOnline) {
-        // Send initial heartbeat
-        await sendHeartbeat(ctx, "available");
-
-        heartbeatInterval = setInterval(async () => {
-          try {
-            await sendHeartbeat(ctx, "available");
-            ctx.logger.debug("openclaw-agent-reach: Sent heartbeat");
-          } catch (err) {
-            ctx.logger.warn(
-              `openclaw-agent-reach: Heartbeat failed: ${String(err)}`
-            );
-          }
-        }, intervalMs);
-        sharedHeartbeatInterval = heartbeatInterval;
-
-        ctx.logger.info(
-          `openclaw-agent-reach: Started (heartbeat every ${intervalMs / 1000}s)`
-        );
-      } else {
-        ctx.logger.info(
-          `openclaw-agent-reach: Started (heartbeats paused - offline mode)`
-        );
-      }
-
-      // Nostr DM receiving is handled by OpenClaw's native Nostr channel
-    },
-
-    async stop(ctx: ServiceContext) {
-      // Clear heartbeat interval
-      if (heartbeatInterval) {
-        clearInterval(heartbeatInterval);
-        heartbeatInterval = null;
-        sharedHeartbeatInterval = null;
-      }
-
-      // Send maintenance heartbeat
-      if (pool && secretKey && serviceCardId) {
-        try {
-          await sendHeartbeat(ctx, "maintenance");
-          ctx.logger.debug("openclaw-agent-reach: Sent maintenance heartbeat");
-        } catch {
-          // Ignore errors on shutdown
-        }
-      }
-
-      // Close relay connections but keep shared vars for tools
-      if (pool) {
-        pool.close(relays);
-        pool = null;
-        // Re-create pool for shared use (tools still need it)
-        pool = new nostrTools.SimplePool();
-        sharedPool = pool;
-      }
-
-      ctx.logger.info("openclaw-agent-reach: Stopped (shared pool preserved for tools)");
-    },
-  };
-
-  async function publishServiceCard(
-    ctx: ServiceContext,
-    card: {
-      id: string;
-      name: string;
-      about: string;
-      capabilities: Array<{ id: string; description: string }>;
-      protocols: Protocol[];
-    }
-  ) {
-    if (!pool || !secretKey || !nostrTools) return;
-
-    const content = JSON.stringify({
-      name: card.name,
-      about: card.about,
-      capabilities: card.capabilities,
-      protocols: card.protocols,
-    });
-
-    // Build tags (NIP-32 labels for discovery filtering)
-    const tags: string[][] = [
-      ["d", card.id], // Parameterized replaceable event identifier
-      ["name", card.name], // Agent name
-      ["about", card.about], // Agent description
-      ["L", "agent-reach"], // NIP-32 namespace
-      ["l", "service-card", "agent-reach"], // NIP-32 label
-    ];
-
-    // Add capability tags with descriptions
-    for (const cap of card.capabilities) {
-      tags.push(["c", cap.id, cap.description]);
-    }
-
-    // Add protocol tags
-    for (const proto of card.protocols) {
-      const endpoint = proto.relays ?? proto.url ?? "";
-      tags.push(["r", proto.type, endpoint]);
-    }
-
-    // Custom appearance tags from state
-    if (currentState?.color) tags.push(["color", currentState.color]);
-    if (currentState?.avatar) tags.push(["avatar", currentState.avatar]);
-    if (currentState?.banner) tags.push(["banner", currentState.banner]);
-
-    const event = nostrTools.finalizeEvent(
-      {
-        kind: KIND_SERVICE_CARD,
-        content,
-        tags,
-        created_at: Math.floor(Date.now() / 1000),
-      },
-      secretKey
-    );
-
-    // pool.publish returns Promise[] - one per relay
-    const promises = pool!.publish(relays, event);
-    await Promise.allSettled(promises);
-  }
-
-  async function sendHeartbeat(
-    ctx: ServiceContext,
-    status: "available" | "busy" | "maintenance"
-  ) {
-    if (!pool || !secretKey || !serviceCardId || !nostrTools) return;
-
-    const content = JSON.stringify({ status });
-
-    const tags: string[][] = [
-      ["d", serviceCardId], // Links to service card
-      ["s", status], // Status tag for filtering
-      ["L", "agent-reach"], // NIP-32 namespace
-      ["l", "heartbeat", "agent-reach"], // NIP-32 label
-    ];
-
-    const event = nostrTools.finalizeEvent(
-      {
-        kind: KIND_HEARTBEAT,
-        content,
-        tags,
-        created_at: Math.floor(Date.now() / 1000),
-      },
-      secretKey
-    );
-
-    // pool.publish returns Promise[] - one per relay
-    const promises = pool!.publish(relays, event);
-    await Promise.allSettled(promises);
-  }
-}
-
-/**
- * Parse a private key from hex or nsec format
- */
-function parsePrivateKey(key: string, nostrTools: any): Uint8Array {
+function parsePrivateKey(key: string, nostr: any): Uint8Array {
   const trimmed = key.trim();
-
-  // Handle nsec (bech32) format
   if (trimmed.startsWith("nsec1")) {
-    const decoded = nostrTools.nip19.decode(trimmed);
-    if (decoded.type !== "nsec") {
-      throw new Error("Invalid nsec key");
-    }
+    const decoded = nostr.nip19.decode(trimmed);
+    if (decoded.type !== "nsec") throw new Error("Invalid nsec key");
     return decoded.data;
   }
-
-  // Handle hex format
   if (!/^[0-9a-fA-F]{64}$/.test(trimmed)) {
     throw new Error("Private key must be 64 hex characters or nsec format");
   }
-
   const bytes = new Uint8Array(32);
   for (let i = 0; i < 32; i++) {
     bytes[i] = parseInt(trimmed.slice(i * 2, i * 2 + 2), 16);
@@ -373,10 +128,475 @@ function parsePrivateKey(key: string, nostrTools: any): Uint8Array {
   return bytes;
 }
 
-/**
- * Update service card and republish
- * Called by update_service_card tool
- */
+/** Normalize npub or hex pubkey to hex */
+function normalizePubkey(input: string, nostr: any): string {
+  const trimmed = input.trim();
+  if (trimmed.startsWith("npub1")) {
+    const decoded = nostr.nip19.decode(trimmed);
+    if (decoded.type !== "npub") throw new Error("Invalid npub");
+    return decoded.data as string;
+  }
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return trimmed.toLowerCase();
+  throw new Error(`Invalid pubkey format: ${trimmed}`);
+}
+
+// ── Nostr event helpers ────────────────────────────────────────────────
+
+async function publishEvent(kind: number, content: string, tags: string[][]) {
+  if (!rt) return;
+  const event = rt.nostr.finalizeEvent(
+    { kind, content, tags, created_at: Math.floor(Date.now() / 1000) },
+    rt.secretKey,
+  );
+  const promises = rt.pool.publish(rt.relays, event);
+  await Promise.allSettled(promises);
+  return event;
+}
+
+async function publishServiceCard() {
+  if (!rt) return;
+  const { state, serviceCardId, relays } = rt;
+  const name = state.name ?? "Agent";
+  const about = state.about ?? "";
+
+  const protocols: Protocol[] = [{ type: "dm", relays: relays.join(",") }];
+
+  const content = JSON.stringify({
+    name,
+    about,
+    capabilities: state.capabilities,
+    protocols,
+  });
+
+  const tags: string[][] = [
+    ["d", serviceCardId],
+    ["name", name],
+    ["about", about],
+    ["L", "agent-reach"],
+    ["l", "service-card", "agent-reach"],
+  ];
+
+  for (const cap of state.capabilities) {
+    tags.push(["c", cap.id, cap.description]);
+  }
+  for (const proto of protocols) {
+    tags.push(["r", proto.type, proto.relays ?? proto.url ?? ""]);
+  }
+  if (state.color) tags.push(["color", state.color]);
+  if (state.avatar) tags.push(["avatar", state.avatar]);
+  if (state.banner) tags.push(["banner", state.banner]);
+
+  await publishEvent(KIND_SERVICE_CARD, content, tags);
+}
+
+async function sendHeartbeat(status: "available" | "busy" | "maintenance") {
+  if (!rt) return;
+  await publishEvent(KIND_HEARTBEAT, JSON.stringify({ status }), [
+    ["d", rt.serviceCardId],
+    ["s", status],
+    ["L", "agent-reach"],
+    ["l", "heartbeat", "agent-reach"],
+  ]);
+}
+
+// ── Heartbeat management ───────────────────────────────────────────────
+
+function startHeartbeatTimer() {
+  if (!rt) return;
+  stopHeartbeatTimer();
+  rt.heartbeatTimer = setInterval(async () => {
+    try {
+      await sendHeartbeat("available");
+      rt?.logger.debug("agent-reach: heartbeat sent");
+    } catch (err) {
+      rt?.logger.warn(`agent-reach: heartbeat failed: ${err}`);
+    }
+  }, rt.state.heartbeatIntervalMs);
+}
+
+function stopHeartbeatTimer() {
+  if (rt?.heartbeatTimer) {
+    clearInterval(rt.heartbeatTimer);
+    rt.heartbeatTimer = null;
+  }
+}
+
+// ── Inbound DM handling ────────────────────────────────────────────────
+
+function startDmSubscription() {
+  if (!rt) return;
+  const { pool, nostr, secretKey, publicKeyHex, relays, allowFrom, logger } = rt;
+
+  if (allowFrom.size === 0) {
+    logger.info("agent-reach: No allowFrom configured — inbound DMs disabled");
+    return;
+  }
+
+  logger.info(`agent-reach: Listening for DMs from ${allowFrom.size} allowed agent(s)`);
+
+  // Subscribe to NIP-04 DMs addressed to us
+  const filter = {
+    kinds: [KIND_DM],
+    "#p": [publicKeyHex],
+    // Only from allowed senders
+    authors: Array.from(allowFrom),
+  };
+
+  rt.dmSub = pool.subscribeMany(relays, [filter], {
+    onevent: async (event: any) => {
+      try {
+        // Double-check sender is allowed (belt + suspenders)
+        if (!allowFrom.has(event.pubkey)) {
+          logger.debug(`agent-reach: Dropped DM from non-allowed sender ${event.pubkey.slice(0, 8)}`);
+          return;
+        }
+
+        // Decrypt NIP-04
+        const plaintext = await nostr.nip04.decrypt(secretKey, event.pubkey, event.content);
+
+        // Resolve sender name from known agents (best effort)
+        let senderLabel: string;
+        try {
+          senderLabel = nostr.nip19.npubEncode(event.pubkey);
+        } catch {
+          senderLabel = event.pubkey.slice(0, 12);
+        }
+
+        logger.info(`agent-reach: DM from ${senderLabel}: ${plaintext.slice(0, 80)}...`);
+
+        // Inject as system event for the agent to process
+        const eventText = `[Agent DM from ${senderLabel}]\n${plaintext}`;
+
+        // Inject DM into agent session and wake the agent.
+        // We try multiple approaches since OpenClaw's internals vary by version.
+        let injected = false;
+
+        // Approach 1: Find OpenClaw's system API via dynamic import of dist files.
+        // The minified filenames change between builds — scan for the right one.
+        if (!injected) {
+          try {
+            const distFs = require("fs");
+            const distPath = require("path");
+            // Resolve relative to /app/ (OpenClaw install dir)
+            const distDir = "/app/dist";
+            const files = distFs.readdirSync(distDir) as string[];
+
+            // Find the subsystem file (contains enqueueSystemEvent)
+            const subsystemFile = files.find((f: string) => f.startsWith("subsystem-") && f.endsWith(".js"));
+            // Find the reply file (contains requestHeartbeatNow)
+            const replyFile = files.find((f: string) => f.startsWith("reply-") && f.endsWith(".js"));
+
+            if (subsystemFile && replyFile) {
+              const subsystem = await import(distPath.join(distDir, subsystemFile));
+              const reply = await import(distPath.join(distDir, replyFile));
+
+              // Look for enqueueSystemEvent and requestHeartbeatNow in exports
+              const enqueueFn = Object.values(subsystem).find(
+                (v: any) => typeof v === "function" && v.name === "enqueueSystemEvent",
+              ) as Function | undefined;
+              const heartbeatFn = Object.values(reply).find(
+                (v: any) => typeof v === "function" && v.name === "requestHeartbeatNow",
+              ) as Function | undefined;
+
+              if (enqueueFn) {
+                enqueueFn(eventText, { sessionKey: "agent:main:main" });
+                if (heartbeatFn) {
+                  heartbeatFn({ reason: "agent-reach-dm" });
+                }
+                logger.info(`agent-reach: Injected DM and triggered wake`);
+                injected = true;
+              }
+            }
+          } catch {
+            // Expected to fail in some environments
+          }
+        }
+
+        // Approach 2: Use the nostr channel plugin's runtime if available
+        if (!injected) {
+          try {
+            const runtimePath = "/app/extensions/nostr/src/runtime.js";
+            const { getNostrRuntime } = await import(runtimePath).catch(() => ({
+              getNostrRuntime: null,
+            }));
+
+            if (getNostrRuntime) {
+              const nostrRt = getNostrRuntime();
+              nostrRt.system.enqueueSystemEvent(eventText, {
+                sessionKey: "agent:main:main",
+              });
+              nostrRt.system.requestHeartbeatNow({ reason: "agent-reach-dm" });
+              logger.info(`agent-reach: Injected DM via nostr runtime`);
+              injected = true;
+            }
+          } catch {
+            // Nostr channel plugin not available
+          }
+        }
+
+        if (!injected) {
+          // Agent will see it on next heartbeat poll
+          logger.warn(
+            `agent-reach: Received DM but could not inject into session. ` +
+            `From: ${senderLabel}. Message: ${plaintext.slice(0, 200)}`,
+          );
+        }
+      } catch (err) {
+        logger.error(`agent-reach: Failed to process inbound DM: ${err}`);
+      }
+    },
+    oneose: () => {
+      logger.debug("agent-reach: DM subscription EOSE (caught up)");
+    },
+  });
+}
+
+function stopDmSubscription() {
+  if (rt?.dmSub) {
+    rt.dmSub.close?.();
+    rt.dmSub = null;
+  }
+}
+
+// ── Service lifecycle ──────────────────────────────────────────────────
+
+export function createAgentReachService(_api: any) {
+  return {
+    id: "openclaw-agent-reach",
+
+    async start(ctx: ServiceContext) {
+      // Load nostr-tools
+      let nostr: any;
+      try {
+        nostr = await import("nostr-tools");
+      } catch (err) {
+        ctx.logger.error(`agent-reach: Failed to load nostr-tools: ${err}`);
+        return;
+      }
+
+      // Read plugin config
+      const pluginConfig: PluginConfig | undefined =
+        ctx.config?.plugins?.entries?.["openclaw-agent-reach"];
+
+      if (!pluginConfig?.privateKey) {
+        ctx.logger.warn("agent-reach: No privateKey in plugin config");
+        return;
+      }
+
+      // Parse key
+      let secretKey: Uint8Array;
+      let publicKeyHex: string;
+      try {
+        secretKey = parsePrivateKey(pluginConfig.privateKey, nostr);
+        publicKeyHex = nostr.getPublicKey(secretKey);
+      } catch (err) {
+        ctx.logger.error(`agent-reach: Invalid private key: ${err}`);
+        return;
+      }
+
+      // Resolve config
+      const relays = pluginConfig.relays ?? DEFAULT_RELAYS;
+      const allowFromRaw = pluginConfig.allowFrom ?? [];
+
+      // Normalize allowFrom to hex pubkeys
+      const allowFrom = new Set<string>();
+      for (const entry of allowFromRaw) {
+        try {
+          allowFrom.add(normalizePubkey(entry, nostr));
+        } catch (err) {
+          ctx.logger.warn(`agent-reach: Skipping invalid allowFrom entry "${entry}": ${err}`);
+        }
+      }
+
+      // Load persisted state
+      const state = await loadState(ctx.stateDir);
+
+      // Initialize runtime
+      rt = {
+        pool: new nostr.SimplePool(),
+        nostr,
+        secretKey,
+        publicKeyHex,
+        relays,
+        allowFrom,
+        serviceCardId: `${publicKeyHex.slice(0, 8)}-v1`,
+        stateDir: ctx.stateDir,
+        logger: ctx.logger,
+        state,
+        heartbeatTimer: null,
+        dmSub: null,
+      };
+
+      // Publish service card
+      try {
+        await publishServiceCard();
+        ctx.logger.info(`agent-reach: Published service card (${rt.serviceCardId})`);
+      } catch (err) {
+        ctx.logger.error(`agent-reach: Failed to publish service card: ${err}`);
+      }
+
+      // Start heartbeats (unless paused)
+      if (state.online !== false) {
+        await sendHeartbeat("available");
+        startHeartbeatTimer();
+        ctx.logger.info(
+          `agent-reach: Started (heartbeat every ${state.heartbeatIntervalMs / 1000}s, ` +
+          `${allowFrom.size} allowed agent(s))`,
+        );
+      } else {
+        ctx.logger.info("agent-reach: Started (heartbeats paused — offline mode)");
+      }
+
+      // Start listening for inbound DMs
+      startDmSubscription();
+    },
+
+    async stop(ctx: ServiceContext) {
+      if (!rt) return;
+
+      stopHeartbeatTimer();
+      stopDmSubscription();
+
+      // Send maintenance heartbeat before shutdown
+      try {
+        await sendHeartbeat("maintenance");
+      } catch {
+        // Best effort
+      }
+
+      // Close relay pool
+      rt.pool.close(rt.relays);
+      rt = null;
+
+      ctx.logger.info("agent-reach: Stopped");
+    },
+  };
+}
+
+// ── Tool implementations ───────────────────────────────────────────────
+
+export async function discoverAgents(params: {
+  capability?: string;
+  limit?: number;
+}) {
+  if (!rt) throw new Error("agent-reach service not running");
+
+  const filter: any = {
+    kinds: [KIND_SERVICE_CARD],
+    "#L": ["agent-reach"],
+    limit: params.limit ?? 20,
+  };
+
+  if (params.capability) {
+    filter["#c"] = [params.capability];
+  }
+
+  const events = await rt.pool.querySync(rt.relays, filter);
+
+  const agents: Array<{
+    name: string;
+    npub: string;
+    pubkey: string;
+    about: string;
+    capabilities: Capability[];
+    protocols: Array<{ type: string; endpoint: string }>;
+    online: boolean;
+    lastSeen: number | null;
+  }> = [];
+
+  for (const event of events) {
+    try {
+      const tags = event.tags as string[][];
+      const name = tags.find((t) => t[0] === "name")?.[1] ?? "Unknown";
+      const about = tags.find((t) => t[0] === "about")?.[1] ?? "";
+
+      agents.push({
+        name,
+        npub: rt.nostr.nip19.npubEncode(event.pubkey),
+        pubkey: event.pubkey,
+        about,
+        capabilities: tags
+          .filter((t) => t[0] === "c")
+          .map((t) => ({ id: t[1], description: t[2] ?? "" })),
+        protocols: tags
+          .filter((t) => t[0] === "r")
+          .map((t) => ({ type: t[1], endpoint: t[2] ?? "" })),
+        online: false,
+        lastSeen: null,
+      });
+    } catch {
+      // Skip malformed
+    }
+  }
+
+  // Check heartbeats for online status
+  if (agents.length > 0) {
+    const heartbeats = await rt.pool.querySync(rt.relays, {
+      kinds: [KIND_HEARTBEAT],
+      authors: agents.map((a) => a.pubkey),
+      limit: agents.length * 2,
+    });
+
+    const now = Math.floor(Date.now() / 1000);
+    for (const hb of heartbeats) {
+      const agent = agents.find((a) => a.pubkey === hb.pubkey);
+      if (agent) {
+        if (now - hb.created_at < 900) agent.online = true;
+        if (agent.lastSeen === null || hb.created_at > agent.lastSeen) {
+          agent.lastSeen = hb.created_at;
+        }
+      }
+    }
+  }
+
+  return agents;
+}
+
+export async function contactAgent(params: {
+  npub?: string;
+  pubkey?: string;
+  message: string;
+}): Promise<{ success: boolean; message: string; eventId?: string }> {
+  if (!rt) return { success: false, message: "agent-reach service not running" };
+  if (!params.message) return { success: false, message: "Message is required" };
+
+  let recipientPubkey: string;
+  if (params.pubkey) {
+    recipientPubkey = params.pubkey;
+  } else if (params.npub) {
+    try {
+      recipientPubkey = normalizePubkey(params.npub, rt.nostr);
+    } catch (err) {
+      return { success: false, message: `Invalid npub: ${err}` };
+    }
+  } else {
+    return { success: false, message: "Either npub or pubkey is required" };
+  }
+
+  try {
+    const encrypted = await rt.nostr.nip04.encrypt(
+      rt.secretKey,
+      recipientPubkey,
+      params.message,
+    );
+
+    const event = await publishEvent(KIND_DM, encrypted, [
+      ["p", recipientPubkey],
+    ]);
+
+    rt.logger.info(`agent-reach: Sent DM to ${(params.npub ?? recipientPubkey).slice(0, 16)}...`);
+
+    return {
+      success: true,
+      message: `Message sent to ${params.npub ?? recipientPubkey.slice(0, 8)}...`,
+      eventId: event?.id,
+    };
+  } catch (err) {
+    rt.logger.error(`agent-reach: Failed to send DM: ${err}`);
+    return { success: false, message: `Failed to send: ${err}` };
+  }
+}
+
 export async function updateServiceCard(params: {
   capabilities?: string[];
   name?: string;
@@ -387,380 +607,46 @@ export async function updateServiceCard(params: {
   avatar?: string;
   banner?: string;
 }): Promise<{ success: boolean; message: string }> {
-  if (!sharedPool || !sharedSecretKey || !sharedServiceCardId || !sharedStateDir || !sharedNostrTools) {
-    return { success: false, message: "openclaw-agent-reach service not running" };
-  }
+  if (!rt) return { success: false, message: "agent-reach service not running" };
 
-  // Load current state
-  const state = await loadState(sharedStateDir);
+  const state = rt.state;
   const wasOnline = state.online !== false;
 
-  // Update state with new values
+  // Apply updates
   if (params.capabilities) {
-    state.capabilities = params.capabilities.map(id => ({ id, description: "" }));
+    state.capabilities = params.capabilities.map((id) => ({ id, description: "" }));
   }
-  if (params.name !== undefined) {
-    state.name = params.name;
-  }
-  if (params.about !== undefined) {
-    state.about = params.about;
-  }
+  if (params.name !== undefined) state.name = params.name;
+  if (params.about !== undefined) state.about = params.about;
   if (params.heartbeatIntervalMs !== undefined) {
     state.heartbeatIntervalMs = params.heartbeatIntervalMs;
   }
-  if (params.online !== undefined) {
-    state.online = params.online;
-  }
-  if (params.color !== undefined) {
-    state.color = params.color || undefined;  // empty string clears it
-  }
-  if (params.avatar !== undefined) {
-    state.avatar = params.avatar || undefined;
-  }
-  if (params.banner !== undefined) {
-    state.banner = params.banner || undefined;
-  }
+  if (params.online !== undefined) state.online = params.online;
+  if (params.color !== undefined) state.color = params.color || undefined;
+  if (params.avatar !== undefined) state.avatar = params.avatar || undefined;
+  if (params.banner !== undefined) state.banner = params.banner || undefined;
 
   const isOnline = state.online !== false;
 
-  // Handle online/offline state change
+  // Handle online/offline transitions
   if (wasOnline && !isOnline) {
-    // Going offline - stop heartbeats
-    if (sharedHeartbeatInterval) {
-      clearInterval(sharedHeartbeatInterval);
-      sharedHeartbeatInterval = null;
-    }
-    // Send maintenance heartbeat
-    const maintenanceContent = JSON.stringify({ status: "maintenance" });
-    const maintenanceTags: string[][] = [
-      ["d", sharedServiceCardId],
-      ["s", "maintenance"],
-      ["L", "agent-reach"],
-      ["l", "heartbeat", "agent-reach"],
-    ];
-    const maintenanceEvent = sharedNostrTools.finalizeEvent(
-      {
-        kind: KIND_HEARTBEAT,
-        content: maintenanceContent,
-        tags: maintenanceTags,
-        created_at: Math.floor(Date.now() / 1000),
-      },
-      sharedSecretKey
-    );
-    const maintenancePromises = sharedPool.publish(sharedRelays, maintenanceEvent);
-    await Promise.allSettled(maintenancePromises);
-    sharedLogger?.info(`openclaw-agent-reach: Going offline - heartbeats paused`);
+    stopHeartbeatTimer();
+    await sendHeartbeat("maintenance");
+    rt.logger.info("agent-reach: Going offline — heartbeats paused");
   } else if (!wasOnline && isOnline) {
-    // Coming online - restart heartbeats
-    const intervalMs = state.heartbeatIntervalMs || DEFAULT_HEARTBEAT_INTERVAL_MS;
-    
-    // Send immediate available heartbeat
-    const availableContent = JSON.stringify({ status: "available" });
-    const availableTags: string[][] = [
-      ["d", sharedServiceCardId],
-      ["s", "available"],
-      ["L", "agent-reach"],
-      ["l", "heartbeat", "agent-reach"],
-    ];
-    const availableEvent = sharedNostrTools.finalizeEvent(
-      {
-        kind: KIND_HEARTBEAT,
-        content: availableContent,
-        tags: availableTags,
-        created_at: Math.floor(Date.now() / 1000),
-      },
-      sharedSecretKey
-    );
-    const availablePromises = sharedPool.publish(sharedRelays, availableEvent);
-    await Promise.allSettled(availablePromises);
-
-    // Restart interval
-    sharedHeartbeatInterval = setInterval(async () => {
-      try {
-        const hbContent = JSON.stringify({ status: "available" });
-        const hbTags: string[][] = [
-          ["d", sharedServiceCardId!],
-          ["s", "available"],
-          ["L", "agent-reach"],
-          ["l", "heartbeat", "agent-reach"],
-        ];
-        const hbEvent = sharedNostrTools.finalizeEvent(
-          {
-            kind: KIND_HEARTBEAT,
-            content: hbContent,
-            tags: hbTags,
-            created_at: Math.floor(Date.now() / 1000),
-          },
-          sharedSecretKey
-        );
-        const hbPromises = sharedPool.publish(sharedRelays, hbEvent);
-        await Promise.allSettled(hbPromises);
-        sharedLogger?.debug("openclaw-agent-reach: Sent heartbeat");
-      } catch (err) {
-        sharedLogger?.warn(`openclaw-agent-reach: Heartbeat failed: ${String(err)}`);
-      }
-    }, intervalMs);
-    sharedLogger?.info(`openclaw-agent-reach: Coming online - heartbeats resumed`);
+    await sendHeartbeat("available");
+    startHeartbeatTimer();
+    rt.logger.info("agent-reach: Coming online — heartbeats resumed");
   }
 
-  // Save updated state
-  await saveState(sharedStateDir, state);
+  // Persist + republish
+  await saveState(rt.stateDir, state);
+  await publishServiceCard();
 
-  // Get nostr config for defaults
-  const nostrConfig = sharedConfig?.channels?.nostr ?? {};
+  rt.logger.info("agent-reach: Updated and republished service card");
 
-  // Build protocols
-  const protocols: Protocol[] = [];
-  if (nostrConfig.enabled !== false) {
-    protocols.push({
-      type: "dm",
-      relays: sharedRelays.join(","),
-    });
-  }
-
-  // Republish service card
-  const name = state.name ?? nostrConfig.profile?.name ?? "Agent";
-  const about = state.about ?? nostrConfig.profile?.about ?? "";
-
-  const content = JSON.stringify({
-    name,
-    about,
-    capabilities: state.capabilities,
-    protocols,
-  });
-
-  const tags: string[][] = [
-    ["d", sharedServiceCardId],
-    ["name", name],
-    ["about", about],
-    ["L", "agent-reach"],
-    ["l", "service-card", "agent-reach"],
-  ];
-
-  for (const cap of state.capabilities) {
-    tags.push(["c", cap.id, cap.description]);
-  }
-
-  for (const proto of protocols) {
-    const endpoint = proto.relays ?? proto.url ?? "";
-    tags.push(["r", proto.type, endpoint]);
-  }
-
-  // Custom appearance tags
-  if (state.color) tags.push(["color", state.color]);
-  if (state.avatar) tags.push(["avatar", state.avatar]);
-  if (state.banner) tags.push(["banner", state.banner]);
-
-  const event = sharedNostrTools.finalizeEvent(
-    {
-      kind: KIND_SERVICE_CARD,
-      content,
-      tags,
-      created_at: Math.floor(Date.now() / 1000),
-    },
-    sharedSecretKey
-  );
-
-  const promises = sharedPool.publish(sharedRelays, event);
-  await Promise.allSettled(promises);
-
-  sharedLogger?.info(`openclaw-agent-reach: Updated and republished service card`);
-
-  return { 
-    success: true, 
-    message: `Service card updated. Capabilities: ${state.capabilities.map(c => c.id).join(", ") || "none"}` 
+  return {
+    success: true,
+    message: `Service card updated. Capabilities: ${state.capabilities.map((c) => c.id).join(", ") || "none"}`,
   };
-}
-
-/**
- * Discover agents by capability
- * Used by the discover_agents tool
- */
-export async function discoverAgents(params: {
-  capability?: string;
-  limit?: number;
-}): Promise<Array<{
-  name: string;
-  npub: string;
-  pubkey: string;
-  about: string;
-  capabilities: Array<{ id: string; description: string }>;
-  protocols: Array<{ type: string; endpoint: string }>;
-  online: boolean;
-  lastSeen: number | null;
-}>> {
-  if (!sharedPool || !sharedNostrTools) {
-    // Try to initialize if not already done
-    try {
-      sharedNostrTools = await import("nostr-tools");
-      sharedPool = new sharedNostrTools.SimplePool();
-    } catch {
-      throw new Error("openclaw-agent-reach service not running");
-    }
-  }
-
-  const limit = params.limit ?? 20;
-  
-  // Build filter for service cards
-  const filter: any = {
-    kinds: [KIND_SERVICE_CARD],
-    limit,
-  };
-
-  // Add capability filter if specified
-  if (params.capability) {
-    filter["#c"] = [params.capability];
-  }
-
-  // Add label filter for agent-reach namespace
-  filter["#L"] = ["agent-reach"];
-
-  // Query relays for service cards
-  const events = await sharedPool.querySync(sharedRelays, filter);
-
-  // Parse service cards
-  const agents: Array<{
-    name: string;
-    npub: string;
-    pubkey: string;
-    about: string;
-    capabilities: Array<{ id: string; description: string }>;
-    protocols: Array<{ type: string; endpoint: string }>;
-    online: boolean;
-    lastSeen: number | null;
-    cardId: string;
-  }> = [];
-
-  for (const event of events) {
-    try {
-      const tags = event.tags;
-      const name = tags.find((t: string[]) => t[0] === "name")?.[1] ?? "Unknown";
-      const about = tags.find((t: string[]) => t[0] === "about")?.[1] ?? "";
-      const cardId = tags.find((t: string[]) => t[0] === "d")?.[1] ?? "";
-      
-      // Parse capabilities from tags
-      const capabilities = tags
-        .filter((t: string[]) => t[0] === "c")
-        .map((t: string[]) => ({ id: t[1], description: t[2] ?? "" }));
-
-      // Parse protocols from tags
-      const protocols = tags
-        .filter((t: string[]) => t[0] === "r")
-        .map((t: string[]) => ({ type: t[1], endpoint: t[2] ?? "" }));
-
-      const npub = sharedNostrTools.nip19.npubEncode(event.pubkey);
-
-      agents.push({
-        name,
-        npub,
-        pubkey: event.pubkey,
-        about,
-        capabilities,
-        protocols,
-        online: false, // Will be updated by heartbeat check
-        lastSeen: null,
-        cardId,
-      });
-    } catch {
-      // Skip malformed events
-    }
-  }
-
-  // Get heartbeats for each agent to check online status
-  if (agents.length > 0) {
-    const heartbeatFilter: any = {
-      kinds: [KIND_HEARTBEAT],
-      authors: agents.map(a => a.pubkey),
-      limit: agents.length * 2,
-    };
-
-    const heartbeats = await sharedPool.querySync(sharedRelays, heartbeatFilter);
-    
-    // Map heartbeats to agents
-    const now = Math.floor(Date.now() / 1000);
-    for (const hb of heartbeats) {
-      const agent = agents.find(a => a.pubkey === hb.pubkey);
-      if (agent) {
-        const age = now - hb.created_at;
-        // Consider online if heartbeat < 15 minutes old
-        if (age < 900) {
-          agent.online = true;
-        }
-        if (agent.lastSeen === null || hb.created_at > agent.lastSeen) {
-          agent.lastSeen = hb.created_at;
-        }
-      }
-    }
-  }
-
-  // Return without internal cardId field
-  return agents.map(({ cardId, ...rest }) => rest);
-}
-
-/**
- * Contact an agent via Nostr DM
- * Sends a NIP-04 encrypted direct message
- */
-export async function contactAgent(params: {
-  npub?: string;
-  pubkey?: string;
-  message: string;
-}): Promise<{ success: boolean; message: string; eventId?: string }> {
-  if (!sharedPool || !sharedSecretKey || !sharedNostrTools) {
-    return { success: false, message: "openclaw-agent-reach service not running" };
-  }
-
-  if (!params.message) {
-    return { success: false, message: "Message is required" };
-  }
-
-  // Get recipient pubkey
-  let recipientPubkey: string;
-  if (params.pubkey) {
-    recipientPubkey = params.pubkey;
-  } else if (params.npub) {
-    try {
-      const decoded = sharedNostrTools.nip19.decode(params.npub);
-      if (decoded.type !== "npub") {
-        return { success: false, message: "Invalid npub format" };
-      }
-      recipientPubkey = decoded.data as string;
-    } catch (err) {
-      return { success: false, message: `Invalid npub: ${String(err)}` };
-    }
-  } else {
-    return { success: false, message: "Either npub or pubkey is required" };
-  }
-
-  try {
-    // Encrypt message using NIP-04
-    const nip04 = sharedNostrTools.nip04;
-    const encrypted = await nip04.encrypt(sharedSecretKey, recipientPubkey, params.message);
-
-    // Create DM event (kind 4)
-    const event = sharedNostrTools.finalizeEvent(
-      {
-        kind: 4,
-        content: encrypted,
-        tags: [["p", recipientPubkey]],
-        created_at: Math.floor(Date.now() / 1000),
-      },
-      sharedSecretKey
-    );
-
-    // Publish to relays
-    const promises = sharedPool.publish(sharedRelays, event);
-    await Promise.allSettled(promises);
-
-    sharedLogger?.info(`openclaw-agent-reach: Sent DM to ${params.npub || recipientPubkey.slice(0, 8)}...`);
-
-    return { 
-      success: true, 
-      message: `Message sent to ${params.npub || recipientPubkey.slice(0, 8)}...`,
-      eventId: event.id
-    };
-  } catch (err) {
-    sharedLogger?.error(`openclaw-agent-reach: Failed to send DM: ${String(err)}`);
-    return { success: false, message: `Failed to send: ${String(err)}` };
-  }
 }

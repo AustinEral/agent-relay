@@ -1,29 +1,26 @@
 /**
- * OpenClaw Agent Discovery Extension
+ * OpenClaw Agent Reach — v0.5.0
  *
- * Publishes service cards and heartbeats to Nostr for agent discovery.
- * Uses the same identity as the Nostr channel plugin (channels.nostr.privateKey).
- * 
- * State (capabilities, etc.) is stored in stateDir, not config.
- * Config only contains "enabled: true".
+ * Self-contained agent discovery and communication over Nostr.
+ * No dependency on OpenClaw's Nostr channel plugin.
  */
 
-import { createAgentDiscoveryService, discoverAgents, updateServiceCard, contactAgent } from "./service.js";
+import {
+  createAgentReachService,
+  discoverAgents,
+  updateServiceCard,
+  contactAgent,
+} from "./service.js";
 
-// Helper to format JSON results (matching OpenClaw's jsonResult format)
 function jsonResult(payload: any) {
   return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(payload, null, 2),
-      },
-    ],
+    content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
     details: payload,
   };
 }
 
-// Tool definition for discover_agents
+// ── Tools ──────────────────────────────────────────────────────────────
+
 const discoverAgentsTool = {
   label: "Discover Agents",
   name: "discover_agents",
@@ -40,7 +37,8 @@ The returned agents include their npub (Nostr public key) which you can use to c
     properties: {
       capability: {
         type: "string",
-        description: "Capability to search for (e.g., 'transcription', 'coding', 'research', 'image-generation'). Leave empty to list all agents.",
+        description:
+          "Capability to search for (e.g., 'transcription', 'coding', 'research', 'image-generation'). Leave empty to list all agents.",
       },
       limit: {
         type: "number",
@@ -50,20 +48,15 @@ The returned agents include their npub (Nostr public key) which you can use to c
     required: [] as string[],
     additionalProperties: false,
   },
-  execute: async (_toolCallId: string, params: { capability?: string; limit?: number }) => {
+  execute: async (_id: string, params: { capability?: string; limit?: number }) => {
     const agents = await discoverAgents({
       capability: params.capability,
       limit: params.limit ?? 10,
     });
-    return jsonResult({
-      agents,
-      count: agents.length,
-      query: params.capability || "all",
-    });
+    return jsonResult({ agents, count: agents.length, query: params.capability || "all" });
   },
 };
 
-// Tool definition for update_service_card
 const updateServiceCardTool = {
   label: "Update Service Card",
   name: "update_service_card",
@@ -78,7 +71,8 @@ Set online=false to pause heartbeats and save tokens when you don't need to be d
       capabilities: {
         type: "array",
         items: { type: "string" },
-        description: "List of capabilities (e.g., ['coding', 'research', 'image-generation']). Replaces existing capabilities.",
+        description:
+          "List of capabilities (e.g., ['coding', 'research', 'image-generation']). Replaces existing capabilities.",
       },
       name: {
         type: "string",
@@ -94,11 +88,13 @@ Set online=false to pause heartbeats and save tokens when you don't need to be d
       },
       online: {
         type: "boolean",
-        description: "Set to false to pause heartbeats (go offline), true to resume. Saves tokens when you don't need to be discoverable.",
+        description:
+          "Set to false to pause heartbeats (go offline), true to resume. Saves tokens when you don't need to be discoverable.",
       },
       color: {
         type: "string",
-        description: "Custom accent color for your card on the dashboard (hex, e.g. '#ff6b2c'). Empty string to clear.",
+        description:
+          "Custom accent color for your card on the dashboard (hex, e.g. '#ff6b2c'). Empty string to clear.",
       },
       avatar: {
         type: "string",
@@ -106,28 +102,30 @@ Set online=false to pause heartbeats and save tokens when you don't need to be d
       },
       banner: {
         type: "string",
-        description: "Banner/background image URL for your card. Empty string to clear.",
+        description:
+          "Banner/background image URL for your card. Empty string to clear.",
       },
     },
     required: [] as string[],
     additionalProperties: false,
   },
-  execute: async (_toolCallId: string, params: { 
-    capabilities?: string[]; 
-    name?: string;
-    about?: string;
-    heartbeatIntervalMs?: number;
-    online?: boolean;
-    color?: string;
-    avatar?: string;
-    banner?: string;
-  }) => {
-    const result = await updateServiceCard(params);
-    return jsonResult(result);
+  execute: async (
+    _id: string,
+    params: {
+      capabilities?: string[];
+      name?: string;
+      about?: string;
+      heartbeatIntervalMs?: number;
+      online?: boolean;
+      color?: string;
+      avatar?: string;
+      banner?: string;
+    },
+  ) => {
+    return jsonResult(await updateServiceCard(params));
   },
 };
 
-// Tool definition for contact_agent
 const contactAgentTool = {
   label: "Contact Agent",
   name: "contact_agent",
@@ -143,7 +141,8 @@ Use this after discovering an agent with discover_agents to initiate communicati
       },
       pubkey: {
         type: "string",
-        description: "The agent's Nostr public key (hex format). Use npub or pubkey, not both.",
+        description:
+          "The agent's Nostr public key (hex format). Use npub or pubkey, not both.",
       },
       message: {
         type: "string",
@@ -153,22 +152,18 @@ Use this after discovering an agent with discover_agents to initiate communicati
     required: ["message"] as string[],
     additionalProperties: false,
   },
-  execute: async (_toolCallId: string, params: { 
-    npub?: string;
-    pubkey?: string;
-    message: string;
-  }) => {
-    const result = await contactAgent(params);
-    return jsonResult(result);
+  execute: async (
+    _id: string,
+    params: { npub?: string; pubkey?: string; message: string },
+  ) => {
+    return jsonResult(await contactAgent(params));
   },
 };
 
-// Plugin registration
-export default function register(api: any) {
-  // Register the background service for heartbeats
-  api.registerService(createAgentDiscoveryService(api));
+// ── Registration ───────────────────────────────────────────────────────
 
-  // Register tools
+export default function register(api: any) {
+  api.registerService(createAgentReachService(api));
   api.registerTool(discoverAgentsTool);
   api.registerTool(updateServiceCardTool);
   api.registerTool(contactAgentTool);
