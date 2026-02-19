@@ -235,11 +235,12 @@ function startDmSubscription() {
   logger.info(`agent-reach: Listening for DMs from ${allowFrom.size} allowed agent(s)`);
 
   // Subscribe to NIP-04 DMs addressed to us
+  // Use `since` to only get DMs from after service start — avoids historical flood
   const filter = {
     kinds: [KIND_DM],
     "#p": [publicKeyHex],
-    // Only from allowed senders
     authors: Array.from(allowFrom),
+    since: Math.floor(Date.now() / 1000) - 60, // 1 min buffer for clock skew
   };
 
   // Note: pass filter as single object, not wrapped in array.
