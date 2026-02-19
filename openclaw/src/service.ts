@@ -375,11 +375,15 @@ export function createAgentReachService(_api: any) {
       }
 
       // Read plugin config
+      // OpenClaw scopes ctx.config to the plugin's config section,
+      // but also try the full path as fallback
       const pluginConfig: PluginConfig | undefined =
-        ctx.config?.plugins?.entries?.["openclaw-agent-reach"];
+        ctx.config?.privateKey
+          ? ctx.config as PluginConfig
+          : ctx.config?.plugins?.entries?.["openclaw-agent-reach"]?.config;
 
       if (!pluginConfig?.privateKey) {
-        ctx.logger.warn("agent-reach: No privateKey in plugin config");
+        ctx.logger.warn("agent-reach: No privateKey in plugin config (plugins.entries.openclaw-agent-reach.privateKey)");
         return;
       }
 
