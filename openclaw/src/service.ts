@@ -281,8 +281,16 @@ function startDmSubscription() {
           try {
             const distFs = require("fs");
             const distPath = require("path");
-            // Resolve relative to /app/ (OpenClaw install dir)
-            const distDir = "/app/dist";
+            // Find OpenClaw's dist dir — varies by install method
+            const distCandidates = [
+              "/app/dist",                                    // Docker (official image)
+              "/usr/lib/node_modules/openclaw/dist",          // npm global install
+              "/usr/local/lib/node_modules/openclaw/dist",    // npm global (alt)
+            ];
+            const distDir = distCandidates.find((d: string) => {
+              try { return distFs.statSync(d).isDirectory(); } catch { return false; }
+            });
+            if (!distDir) throw new Error("dist dir not found");
             const files = distFs.readdirSync(distDir) as string[];
 
             // Find the subsystem file (contains enqueueSystemEvent)
@@ -290,7 +298,7 @@ function startDmSubscription() {
             // Find the reply file (contains requestHeartbeatNow)
             const replyFile = files.find((f: string) => f.startsWith("reply-") && f.endsWith(".js"));
 
-            if (subsystemFile && replyFile) {
+            if (distDir && subsystemFile && replyFile) {
               const subsystem = await import(distPath.join(distDir, subsystemFile));
               const reply = await import(distPath.join(distDir, replyFile));
 
@@ -319,7 +327,15 @@ function startDmSubscription() {
         // Approach 2: Use the nostr channel plugin's runtime if available
         if (!injected) {
           try {
-            const runtimePath = "/app/extensions/nostr/src/runtime.js";
+            const extCandidates = [
+              "/app/extensions/nostr/src/runtime.js",
+              "/usr/lib/node_modules/openclaw/extensions/nostr/src/runtime.js",
+              "/usr/local/lib/node_modules/openclaw/extensions/nostr/src/runtime.js",
+            ];
+            const runtimePath = extCandidates.find((p: string) => {
+              try { return require("fs").statSync(p).isFile(); } catch { return false; }
+            });
+            if (!runtimePath) throw new Error("nostr runtime not found");
             const { getNostrRuntime } = await import(runtimePath).catch(() => ({
               getNostrRuntime: null,
             }));
