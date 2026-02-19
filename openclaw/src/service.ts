@@ -415,6 +415,18 @@ export function createAgentReachService(_api: any) {
       // Load persisted state
       const state = await loadState(ctx.stateDir);
 
+      // Migration: if no name/about in state, try to pull from nostr profile config
+      // This handles upgrades from v0.4.x where these came from channels.nostr.profile
+      if (!state.name || !state.about) {
+        const nostrProfile = ctx.config?.channels?.nostr?.profile;
+        if (nostrProfile) {
+          if (!state.name && nostrProfile.name) state.name = nostrProfile.name;
+          if (!state.about && nostrProfile.about) state.about = nostrProfile.about;
+          await saveState(ctx.stateDir, state);
+          ctx.logger.info("agent-reach: Migrated name/about from nostr profile config");
+        }
+      }
+
       // Initialize runtime
       rt = {
         pool: new nostr.SimplePool(),
