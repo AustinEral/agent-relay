@@ -242,7 +242,10 @@ function startDmSubscription() {
     authors: Array.from(allowFrom),
   };
 
-  rt.dmSub = pool.subscribeMany(relays, [filter], {
+  // Note: pass filter as single object, not wrapped in array.
+  // Some nostr-tools versions double-wrap [filter] → [[filter]] causing
+  // "bad req: provided filter is not an object" from relays.
+  rt.dmSub = pool.subscribeMany(relays, filter, {
     onevent: async (event: any) => {
       try {
         // Double-check sender is allowed (belt + suspenders)
