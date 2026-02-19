@@ -2,7 +2,7 @@
   "id": "openclaw-agent-reach",
   "name": "Agent Reach",
   "description": "Self-contained agent discovery and communication over Nostr",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

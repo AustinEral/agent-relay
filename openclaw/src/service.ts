@@ -78,6 +78,11 @@ interface Protocol {
 // ── Shared runtime state ───────────────────────────────────────────────
 // Accessible by exported tool functions (discover, contact, update)
 
+let runtimeSystemApi: {
+  enqueueSystemEvent: (text: string, opts?: { sessionKey?: string }) => void;
+  requestHeartbeatNow: (opts?: { reason?: string }) => void;
+} | null = null;
+
 let rt: {
   pool: any;
   nostr: any;
@@ -271,96 +276,12 @@ function startDmSubscription() {
         // Inject as system event for the agent to process
         const eventText = `[Agent DM from ${senderLabel}]\n${plaintext}`;
 
-        // Inject DM into agent session and wake the agent.
-        // We try multiple approaches since OpenClaw's internals vary by version.
-        let injected = false;
-
-        // Approach 1: Find OpenClaw's system API via dynamic import of dist files.
-        // The minified filenames change between builds — scan for the right one.
-        if (!injected) {
-          try {
-            const distFs = require("fs");
-            const distPath = require("path");
-            // Find OpenClaw's dist dir — varies by install method
-            const distCandidates = [
-              "/app/dist",                                    // Docker (official image)
-              "/usr/lib/node_modules/openclaw/dist",          // npm global install
-              "/usr/local/lib/node_modules/openclaw/dist",    // npm global (alt)
-            ];
-            const distDir = distCandidates.find((d: string) => {
-              try { return distFs.statSync(d).isDirectory(); } catch { return false; }
-            });
-            if (!distDir) throw new Error("dist dir not found");
-            const files = distFs.readdirSync(distDir) as string[];
-
-            // Find the subsystem file (contains enqueueSystemEvent)
-            const subsystemFile = files.find((f: string) => f.startsWith("subsystem-") && f.endsWith(".js"));
-            // Find the reply file (contains requestHeartbeatNow)
-            const replyFile = files.find((f: string) => f.startsWith("reply-") && f.endsWith(".js"));
-
-            if (distDir && subsystemFile && replyFile) {
-              const subsystem = await import(distPath.join(distDir, subsystemFile));
-              const reply = await import(distPath.join(distDir, replyFile));
-
-              // Look for enqueueSystemEvent and requestHeartbeatNow in exports
-              const enqueueFn = Object.values(subsystem).find(
-                (v: any) => typeof v === "function" && v.name === "enqueueSystemEvent",
-              ) as Function | undefined;
-              const heartbeatFn = Object.values(reply).find(
-                (v: any) => typeof v === "function" && v.name === "requestHeartbeatNow",
-              ) as Function | undefined;
-
-              if (enqueueFn) {
-                enqueueFn(eventText, { sessionKey: "agent:main:main" });
-                if (heartbeatFn) {
-                  heartbeatFn({ reason: "agent-reach-dm" });
-                }
-                logger.info(`agent-reach: Injected DM and triggered wake`);
-                injected = true;
-              }
-            }
-          } catch {
-            // Expected to fail in some environments
-          }
-        }
-
-        // Approach 2: Use the nostr channel plugin's runtime if available
-        if (!injected) {
-          try {
-            const extCandidates = [
-              "/app/extensions/nostr/src/runtime.js",
-              "/usr/lib/node_modules/openclaw/extensions/nostr/src/runtime.js",
-              "/usr/local/lib/node_modules/openclaw/extensions/nostr/src/runtime.js",
-            ];
-            const runtimePath = extCandidates.find((p: string) => {
-              try { return require("fs").statSync(p).isFile(); } catch { return false; }
-            });
-            if (!runtimePath) throw new Error("nostr runtime not found");
-            const { getNostrRuntime } = await import(runtimePath).catch(() => ({
-              getNostrRuntime: null,
-            }));
-
-            if (getNostrRuntime) {
-              const nostrRt = getNostrRuntime();
-              nostrRt.system.enqueueSystemEvent(eventText, {
-                sessionKey: "agent:main:main",
-              });
-              nostrRt.system.requestHeartbeatNow({ reason: "agent-reach-dm" });
-              logger.info(`agent-reach: Injected DM via nostr runtime`);
-              injected = true;
-            }
-          } catch {
-            // Nostr channel plugin not available
-          }
-        }
-
-        if (!injected) {
-          // Agent will see it on next heartbeat poll
-          logger.warn(
-            `agent-reach: Received DM but could not inject into session. ` +
-            `From: ${senderLabel}. Message: ${plaintext.slice(0, 200)}`,
-          );
-        }
+        // Inject DM into session and trigger immediate wake via official plugin runtime API.
+        runtimeSystemApi?.enqueueSystemEvent(eventText, {
+          sessionKey: "agent:main:main",
+        });
+        runtimeSystemApi?.requestHeartbeatNow({ reason: "agent-reach-dm" });
+        logger.info("agent-reach: Injected DM and triggered wake");
       } catch (err) {
         logger.error(`agent-reach: Failed to process inbound DM: ${err}`);
       }
@@ -380,7 +301,9 @@ function stopDmSubscription() {
 
 // ── Service lifecycle ──────────────────────────────────────────────────
 
-export function createAgentReachService(_api: any) {
+export function createAgentReachService(api: any) {
+  runtimeSystemApi = api?.runtime?.system ?? null;
+
   return {
     id: "openclaw-agent-reach",
 
@@ -391,6 +314,18 @@ export function createAgentReachService(_api: any) {
         nostr = await import("nostr-tools");
       } catch (err) {
         ctx.logger.error(`agent-reach: Failed to load nostr-tools: ${err}`);
+        return;
+      }
+
+      // Require modern OpenClaw runtime API for immediate wake
+      if (
+        !runtimeSystemApi ||
+        typeof runtimeSystemApi.enqueueSystemEvent !== "function" ||
+        typeof runtimeSystemApi.requestHeartbeatNow !== "function"
+      ) {
+        ctx.logger.error(
+          "agent-reach: This version requires PluginRuntime.system.enqueueSystemEvent + requestHeartbeatNow. Please update OpenClaw to a build that includes PR #19464.",
+        );
         return;
       }
 
@@ -503,6 +438,7 @@ export function createAgentReachService(_api: any) {
       // Close relay pool
       rt.pool.close(rt.relays);
       rt = null;
+      runtimeSystemApi = null;
 
       ctx.logger.info("agent-reach: Stopped");
     },
