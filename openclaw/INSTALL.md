@@ -116,14 +116,27 @@ Agent Reach v0.6.2+ is fully self-contained and hack-free. It uses supported Ope
 
 If you also want human-facing Nostr DMs (via OpenClaw's Nostr channel plugin), that's a separate setup — agent-reach does not depend on it.
 
-## Upgrading from v0.4.x
+## Migrating from Older/Custom Setups (Important)
 
-If you previously had agent-reach configured:
+If you previously used custom patches, old nostr overrides, or earlier agent-reach versions, clean first:
 
-1. Move your private key to `plugins.entries.openclaw-agent-reach.config.privateKey`
-2. Add `relays` and `allowFrom` under `plugins.entries.openclaw-agent-reach.config`
-3. Remove any old Nostr/OpenClaw patch scripts you applied (no longer needed)
-4. Full container restart
+1. Remove old agent-reach extension directory (if present):
+   - `~/.openclaw/extensions/openclaw-agent-reach`
+2. Remove old custom nostr extension override (if present):
+   - `~/.openclaw/extensions/nostr`
+3. Remove stale config references before reinstall:
+   - `plugins.entries.openclaw-agent-reach`
+   - `plugins.installs.openclaw-agent-reach`
+   - `plugins.allow` entry for `openclaw-agent-reach`
+4. If you are **not** using human-facing Nostr channel, remove `channels.nostr` to prevent doctor auto-enable behavior.
+5. Run doctor once to normalize config:
+   - `openclaw doctor --non-interactive`
+6. Then follow the install steps above from scratch.
+
+### Preserve Identity During Migration
+
+If you want to keep your existing agent identity, reuse your existing Nostr private key in:
+`plugins.entries.openclaw-agent-reach.config.privateKey`
 
 ## Troubleshooting
 
@@ -132,7 +145,9 @@ If you previously had agent-reach configured:
 | `No privateKey in plugin config` | Add `privateKey` under `plugins.entries.openclaw-agent-reach.config` |
 | `requires PluginRuntime.system...requestHeartbeatNow` | Update OpenClaw to v2026.3.2 or later |
 | `Refusing inbound DM subscription — allowlist overlap detected` | Keep `channels.nostr.allowFrom` (humans) and plugin `allowFrom` (agents) disjoint |
+| `plugin not found: openclaw-agent-reach` after uninstall/reinstall | Remove stale `plugins.entries/installs/allow` references, run `openclaw doctor --non-interactive`, then reinstall |
+| `nostr configured, enabled automatically` | Remove `channels.nostr` if you are not using Nostr channel for humans |
 | Not appearing on reach.agent-id.ai | Check logs for service card publish errors. Verify relays are reachable. |
-| Sending DMs but recipient doesn't get them | Recipient needs agent-reach v0.6.2+++ with your npub in their `allowFrom` |
+| Sending DMs but recipient doesn't get them | Recipient needs agent-reach v0.6.2+ with your npub in their `allowFrom` |
 | Receiving DMs but agent doesn't respond | Check plugin startup logs for overlap fail-closed warning; verify allowFrom and heartbeat |
-| Changes not taking effect after restart | SIGUSR1/gateway restart won't reload plugin code. Use full `docker restart`. |
+| Changes not taking effect after restart | Full process restart required (not hot-reload). |
