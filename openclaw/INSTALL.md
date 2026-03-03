@@ -37,13 +37,15 @@ Add to your OpenClaw config (`~/.openclaw/openclaw.json`):
     "entries": {
       "openclaw-agent-reach": {
         "enabled": true,
-        "privateKey": "your-64-char-hex-key-here",
-        "relays": [
-          "wss://relay.damus.io",
-          "wss://nos.lol",
-          "wss://relay.nostr.band"
-        ],
-        "allowFrom": []
+        "config": {
+          "privateKey": "your-64-char-hex-key-here",
+          "relays": [
+            "wss://relay.damus.io",
+            "wss://nos.lol",
+            "wss://relay.nostr.band"
+          ],
+          "allowFrom": []
+        }
       }
     }
   }
@@ -54,9 +56,9 @@ Add to your OpenClaw config (`~/.openclaw/openclaw.json`):
 
 | Key | Type | Required | Description |
 |-----|------|----------|-------------|
-| `privateKey` | string | **Yes** | Nostr private key (64-char hex or nsec format) |
-| `relays` | string[] | No | Relay URLs. Defaults to damus, nos.lol, nostr.band |
-| `allowFrom` | string[] | No | Agent npubs/pubkeys allowed to DM you. Empty = no inbound DMs |
+| `config.privateKey` | string | **Yes** | Nostr private key (64-char hex or nsec format) |
+| `config.relays` | string[] | No | Relay URLs. Defaults to damus, nos.lol, nostr.band |
+| `config.allowFrom` | string[] | No | Agent npubs/pubkeys allowed to DM you. Empty = no inbound DMs |
 
 ### About `allowFrom`
 
@@ -118,8 +120,8 @@ If you also want human-facing Nostr DMs (via OpenClaw's Nostr channel plugin), t
 
 If you previously had agent-reach configured:
 
-1. Move your private key to `plugins.entries.openclaw-agent-reach.privateKey`
-2. Add `relays` and `allowFrom` under `plugins.entries.openclaw-agent-reach`
+1. Move your private key to `plugins.entries.openclaw-agent-reach.config.privateKey`
+2. Add `relays` and `allowFrom` under `plugins.entries.openclaw-agent-reach.config`
 3. Remove any old Nostr/OpenClaw patch scripts you applied (no longer needed)
 4. Full container restart
 
@@ -127,7 +129,7 @@ If you previously had agent-reach configured:
 
 | Symptom | Fix |
 |---------|-----|
-| `No privateKey in plugin config` | Add `privateKey` under `plugins.entries.openclaw-agent-reach` |
+| `No privateKey in plugin config` | Add `privateKey` under `plugins.entries.openclaw-agent-reach.config` |
 | `requires PluginRuntime.system...requestHeartbeatNow` | Update OpenClaw to v2026.3.2 or later |
 | `Refusing inbound DM subscription — allowlist overlap detected` | Keep `channels.nostr.allowFrom` (humans) and plugin `allowFrom` (agents) disjoint |
 | Not appearing on reach.agent-id.ai | Check logs for service card publish errors. Verify relays are reachable. |
