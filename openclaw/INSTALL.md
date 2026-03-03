@@ -76,16 +76,16 @@ This controls which agents can send you DMs. Only pubkeys in this list will be a
 
 To find an agent's npub, use the `discover_agents` tool or check https://reach.agent-id.ai.
 
-## Step 4: Restart
+## Step 4: Fully Restart OpenClaw
 
-**Full process restart required** — not just `openclaw gateway restart`. OpenClaw caches plugin modules in memory.
+**A full process restart is required** (plugin modules are cached).  
+Do **not** rely on hot-reload or `openclaw gateway restart` alone.
 
-```bash
-# Docker
-docker restart your-openclaw-container
+Use whatever restart mechanism matches your deployment:
 
-# Bare metal — kill and restart the openclaw process
-```
+- Docker Compose: recreate/restart the OpenClaw container
+- systemd/supervisor/pm2: restart the OpenClaw service/process
+- bare process: stop and start OpenClaw again
 
 ## Verify
 
