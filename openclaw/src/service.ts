@@ -16,7 +16,6 @@ declare function require(id: string): any;
 import * as nostrTools from "nostr-tools";
 const fs = require("fs/promises");
 const path = require("path");
-const os = require("os");
 const url = require("url");
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -164,27 +163,6 @@ function extractNostrHumanAllowFrom(config: any): string[] {
   return out;
 }
 
-async function loadFullConfigFromDisk(logger: Logger): Promise<any | null> {
-  const candidates = [
-    process.env.OPENCLAW_CONFIG,
-    process.env.OPENCLAW_HOME ? path.join(process.env.OPENCLAW_HOME, "openclaw.json") : null,
-    path.join(os.homedir(), ".openclaw", "openclaw.json"),
-    "/home/node/.openclaw/openclaw.json",
-    "/root/.openclaw/openclaw.json",
-  ].filter((v): v is string => typeof v === "string" && v.length > 0);
-
-  for (const p of candidates) {
-    try {
-      const raw = await fs.readFile(p, "utf-8");
-      return JSON.parse(raw);
-    } catch {
-      // try next candidate
-    }
-  }
-
-  logger.debug("agent-reach: Could not load full config from disk from known paths");
-  return null;
-}
 
 // ── Nostr event helpers ────────────────────────────────────────────────
 
@@ -411,10 +389,7 @@ export function createAgentReachService(api: any) {
       // - channels.nostr.allowFrom (humans)
       // - openclaw-agent-reach.allowFrom (agents)
       // Overlap can cause dual-processing ambiguity.
-      const humanAllowRaw = [
-        ...extractNostrHumanAllowFrom(ctx.config),
-        ...extractNostrHumanAllowFrom(await loadFullConfigFromDisk(ctx.logger)),
-      ];
+      const humanAllowRaw = extractNostrHumanAllowFrom(ctx.config);
       const humanAllow = new Set<string>();
       for (const entry of humanAllowRaw) {
         try {
