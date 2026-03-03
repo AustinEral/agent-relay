@@ -96,6 +96,7 @@ let rt: {
   state: CardState;
   heartbeatTimer: any;
   dmSub: any; // subscription handle for inbound DMs
+  dmIngressEnabled: boolean;
 } | null = null;
 
 // ── State persistence ──────────────────────────────────────────────────
@@ -143,6 +144,32 @@ function normalizePubkey(input: string, nostr: any): string {
   }
   if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return trimmed.toLowerCase();
   throw new Error(`Invalid pubkey format: ${trimmed}`);
+}
+
+function extractNostrHumanAllowFrom(config: any): string[] {
+  const out: string[] = [];
+  const pushAll = (arr: any) => {
+    if (!Array.isArray(arr)) return;
+    for (const v of arr) if (typeof v === "string" && v.trim()) out.push(v.trim());
+  };
+
+  // Full config shape
+  pushAll(config?.channels?.nostr?.allowFrom);
+
+  // Some runtimes may scope config; support direct channel object shape too
+  pushAll(config?.nostr?.allowFrom);
+
+  return out;
+}
+
+async function loadFullConfigFromDisk(logger: Logger): Promise<any | null> {
+  try {
+    const raw = await fs.readFile("/home/node/.openclaw/openclaw.json", "utf-8");
+    return JSON.parse(raw);
+  } catch (err) {
+    logger.debug(`agent-reach: Could not load full config from disk: ${err}`);
+    return null;
+  }
 }
 
 // ── Nostr event helpers ────────────────────────────────────────────────
@@ -230,7 +257,12 @@ function stopHeartbeatTimer() {
 
 function startDmSubscription() {
   if (!rt) return;
-  const { pool, nostr, secretKey, publicKeyHex, relays, allowFrom, logger } = rt;
+  const { pool, nostr, secretKey, publicKeyHex, relays, allowFrom, logger, dmIngressEnabled } = rt;
+
+  if (!dmIngressEnabled) {
+    logger.warn("agent-reach: Inbound DMs disabled due to allowlist overlap safety check");
+    return;
+  }
 
   if (allowFrom.size === 0) {
     logger.info("agent-reach: No allowFrom configured — inbound DMs disabled");
@@ -367,6 +399,37 @@ export function createAgentReachService(api: any) {
         }
       }
 
+      // Safety: enforce disjoint sender boundaries between
+      // - channels.nostr.allowFrom (humans)
+      // - openclaw-agent-reach.allowFrom (agents)
+      // Overlap can cause dual-processing ambiguity.
+      const humanAllowRaw = [
+        ...extractNostrHumanAllowFrom(ctx.config),
+        ...extractNostrHumanAllowFrom(await loadFullConfigFromDisk(ctx.logger)),
+      ];
+      const humanAllow = new Set<string>();
+      for (const entry of humanAllowRaw) {
+        try {
+          humanAllow.add(normalizePubkey(entry, nostr));
+        } catch {
+          // ignore invalid human allowlist entries
+        }
+      }
+      const overlap = Array.from(allowFrom).filter((k) => humanAllow.has(k));
+      if (overlap.length > 0) {
+        const overlapNpubs = overlap.map((k) => {
+          try {
+            return nostr.nip19.npubEncode(k);
+          } catch {
+            return k;
+          }
+        });
+        ctx.logger.error(
+          `agent-reach: Refusing inbound DM subscription — allowlist overlap detected ` +
+          `between channels.nostr.allowFrom and plugin allowFrom: ${overlapNpubs.join(", ")}`,
+        );
+      }
+
       // Load persisted state
       const state = await loadState(ctx.stateDir);
 
@@ -396,6 +459,7 @@ export function createAgentReachService(api: any) {
         state,
         heartbeatTimer: null,
         dmSub: null,
+        dmIngressEnabled: overlap.length === 0,
       };
 
       // Publish service card
@@ -419,7 +483,11 @@ export function createAgentReachService(api: any) {
       }
 
       // Start listening for inbound DMs
-      startDmSubscription();
+      if (rt.dmIngressEnabled) {
+        startDmSubscription();
+      } else {
+        ctx.logger.warn("agent-reach: Inbound DM subscription disabled (overlap safety)");
+      }
     },
 
     async stop(ctx: ServiceContext) {

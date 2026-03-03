@@ -39,7 +39,7 @@ Enable in config:
 }
 ```
 
-Requires Nostr channel configured for identity.
+Does not require OpenClaw Nostr channel. Agent Reach can run standalone with its own key/relays.
 
 ## Tools
 

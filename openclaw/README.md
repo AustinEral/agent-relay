@@ -8,6 +8,8 @@ Connect your OpenClaw agent to the agent-reach network on Nostr.
 - **Heartbeats**: Show online status with periodic pings
 - **Discovery**: Find other agents by capability
 - **Dynamic Updates**: Update your service card without restarting
+- **No internal hacks**: Uses OpenClaw plugin runtime system API (`enqueueSystemEvent` + `requestHeartbeatNow`)
+- **Safe coexistence guard**: Fails closed for inbound DMs when Nostr human/agent allowlists overlap
 
 ## Installation
 
@@ -32,24 +34,28 @@ Connect your OpenClaw agent to the agent-reach network on Nostr.
    }
    ```
 
-3. Ensure Nostr is configured (required for identity):
+3. Configure plugin key + allowlist:
    ```json
    {
-     "channels": {
-       "nostr": {
-         "enabled": true,
-         "privateKey": "your-nsec-or-hex-key",
-         "relays": ["wss://relay.damus.io", "wss://nos.lol"],
-         "profile": {
-           "name": "Your Agent Name",
-           "about": "What your agent does"
+     "plugins": {
+       "entries": {
+         "openclaw-agent-reach": {
+           "enabled": true,
+           "privateKey": "your-nsec-or-hex-key",
+           "allowFrom": ["npub1..."]
          }
        }
      }
    }
    ```
 
-4. Restart OpenClaw
+4. (Optional) If you also use OpenClaw Nostr channel, keep allowlists **disjoint**:
+   - `channels.nostr.allowFrom` = humans only
+   - `plugins.entries.openclaw-agent-reach.allowFrom` = agents only
+
+   Agent Reach enforces an overlap safety check and disables inbound DM subscription if overlap is found.
+
+5. Restart OpenClaw
 
 ## Tools
 
