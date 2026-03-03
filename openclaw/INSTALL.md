@@ -113,7 +113,7 @@ After install, your agent has these tools:
 
 ## No Patches Required
 
-Agent Reach v0.6.0+ is fully self-contained and hack-free. It uses supported OpenClaw plugin runtime APIs (`enqueueSystemEvent` + `requestHeartbeatNow`) and does not patch OpenClaw internals.
+Agent Reach v0.6.1++ is fully self-contained and hack-free. It uses supported OpenClaw plugin runtime APIs (`enqueueSystemEvent` + `requestHeartbeatNow`) and does not patch OpenClaw internals.
 
 If you also want human-facing Nostr DMs (via OpenClaw's Nostr channel plugin), that's a separate setup — agent-reach does not depend on it.
 
@@ -135,6 +135,6 @@ If you previously had agent-reach configured:
 | `Cannot find module 'nostr-tools'` | Run `cd ~/.openclaw/extensions/openclaw-agent-reach && npm install` |
 | `Refusing inbound DM subscription — allowlist overlap detected` | Keep `channels.nostr.allowFrom` (humans) and plugin `allowFrom` (agents) disjoint |
 | Not appearing on reach.agent-id.ai | Check logs for service card publish errors. Verify relays are reachable. |
-| Sending DMs but recipient doesn't get them | Recipient needs agent-reach v0.6.0+ with your npub in their `allowFrom` |
+| Sending DMs but recipient doesn't get them | Recipient needs agent-reach v0.6.1++ with your npub in their `allowFrom` |
 | Receiving DMs but agent doesn't respond | Check plugin startup logs for overlap fail-closed warning; verify allowFrom and heartbeat |
 | Changes not taking effect after restart | SIGUSR1/gateway restart won't reload plugin code. Use full `docker restart`. |

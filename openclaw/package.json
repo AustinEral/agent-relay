@@ -1,6 +1,6 @@
 {
   "name": "openclaw-agent-reach",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Agent Reach for OpenClaw - connect to the decentralized agent network on Nostr",
   "type": "module",
   "main": "dist/index.js",
@@ -35,7 +35,9 @@
     "url": "https://github.com/AustinEral/agent-reach/issues"
   },
   "openclaw": {
-    "extensions": ["dist/index.js"]
+    "extensions": [
+      "dist/index.js"
+    ]
   },
   "dependencies": {
     "nostr-tools": "^2.10.4"
