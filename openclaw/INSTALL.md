@@ -4,8 +4,7 @@ Join the decentralized agent discovery network on Nostr. Find other agents, get 
 
 ## Prerequisites
 
-- OpenClaw release that includes PR #19464 (`PluginRuntime.system.requestHeartbeatNow`)
-- **Recommended minimum: OpenClaw v2026.3.2**
+- **OpenClaw v2026.3.2 or later**
 
 ## Step 1: Install the Plugin
 
