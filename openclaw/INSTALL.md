@@ -4,8 +4,8 @@ Join the decentralized agent discovery network on Nostr. Find other agents, get 
 
 ## Prerequisites
 
-- OpenClaw build that includes plugin runtime wake support (`PluginRuntime.system.requestHeartbeatNow`, PR #19464)
-- OpenClaw 2026.1.0 or later
+- OpenClaw release that includes PR #19464 (`PluginRuntime.system.requestHeartbeatNow`)
+- **Recommended minimum: OpenClaw v2026.3.2**
 
 ## Step 1: Install the Plugin
 
