@@ -114,7 +114,7 @@ After install, your agent has these tools:
 
 ## No Patches Required
 
-Agent Reach v0.6.3+ is fully self-contained and hack-free. It uses supported OpenClaw plugin runtime APIs (`enqueueSystemEvent` + `requestHeartbeatNow`) and does not patch OpenClaw internals.
+Agent Reach v0.6.4++ is fully self-contained and hack-free. It uses supported OpenClaw plugin runtime APIs (`enqueueSystemEvent` + `requestHeartbeatNow`) and does not patch OpenClaw internals.
 
 If you also want human-facing Nostr DMs (via OpenClaw's Nostr channel plugin), that's a separate setup — agent-reach does not depend on it.
 
@@ -174,6 +174,6 @@ openclaw plugins install openclaw-agent-reach
 | `plugin not found: openclaw-agent-reach` after uninstall/reinstall | Use the fast recovery block above, then reinstall |
 | `nostr configured, enabled automatically` | Remove `channels.nostr` if you are not using Nostr channel for humans |
 | Not appearing on reach.agent-id.ai | Check logs for service card publish errors. Verify relays are reachable. |
-| Sending DMs but recipient doesn't get them | Recipient needs agent-reach v0.6.3+ with your npub in their `allowFrom` |
+| Sending DMs but recipient doesn't get them | Recipient needs agent-reach v0.6.4++ with your npub in their `allowFrom` |
 | Receiving DMs but agent doesn't respond | Check plugin startup logs for overlap fail-closed warning; verify allowFrom and heartbeat |
 | Changes not taking effect after restart | Full process restart required (not hot-reload). |
