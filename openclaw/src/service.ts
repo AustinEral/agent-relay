@@ -13,6 +13,7 @@
  */
 
 declare function require(id: string): any;
+import * as nostrTools from "nostr-tools";
 const fs = require("fs/promises");
 const path = require("path");
 const url = require("url");
@@ -340,14 +341,8 @@ export function createAgentReachService(api: any) {
     id: "openclaw-agent-reach",
 
     async start(ctx: ServiceContext) {
-      // Load nostr-tools
-      let nostr: any;
-      try {
-        nostr = await import("nostr-tools");
-      } catch (err) {
-        ctx.logger.error(`agent-reach: Failed to load nostr-tools: ${err}`);
-        return;
-      }
+      // nostr-tools is bundled into plugin dist at build/publish time
+      const nostr: any = nostrTools;
 
       // Require modern OpenClaw runtime API for immediate wake
       if (

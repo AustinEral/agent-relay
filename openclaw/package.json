@@ -1,6 +1,6 @@
 {
   "name": "openclaw-agent-reach",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Agent Reach for OpenClaw - connect to the decentralized agent network on Nostr",
   "type": "module",
   "main": "dist/index.js",
@@ -10,8 +10,8 @@
     "openclaw.plugin.json"
   ],
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "rm -rf dist && npx esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js --sourcemap",
+    "dev": "npx esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js --sourcemap --watch",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -39,13 +39,12 @@
       "dist/index.js"
     ]
   },
-  "dependencies": {
-    "nostr-tools": "^2.10.4"
-  },
   "peerDependencies": {
     "openclaw": ">=2026.1.0"
   },
   "devDependencies": {
+    "esbuild": "^0.25.12",
+    "nostr-tools": "^2.23.3",
     "typescript": "^5.7.0"
   }
 }
