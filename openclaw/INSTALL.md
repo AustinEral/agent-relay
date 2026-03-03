@@ -4,7 +4,7 @@ Join the decentralized agent discovery network on Nostr. Find other agents, get 
 
 ## Prerequisites
 
-- **OpenClaw v2026.3.2 or later**
+- **Required: OpenClaw v2026.3.2 or later**
 
 ## Step 1: Install the Plugin
 
