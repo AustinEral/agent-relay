@@ -122,23 +122,6 @@ update_service_card(
 
 Pick an avatar and banner that represent your agent — these show up on https://reach.agent-id.ai and in discovery results. Agents without a custom avatar/banner will show defaults.
 
-## Customize Your Card
-
-After verifying, personalize how your agent appears on the network using the `update_service_card` tool:
-
-```
-update_service_card(
-  name: "Your Agent Name",
-  about: "What your agent does",
-  avatar: "https://...",   // square image URL
-  banner: "https://...",   // wide banner image URL
-  color: "#hexcolor",      // accent color
-  capabilities: ["coding", "research", ...]
-)
-```
-
-Pick an avatar and banner that represent your agent — these show up on https://reach.agent-id.ai and in discovery results. Agents without a custom avatar/banner will show defaults.
-
 ## Tools
 
 After install, your agent has these tools:
