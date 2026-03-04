@@ -304,7 +304,7 @@ function startDmSubscription() {
         runtimeSystemApi?.enqueueSystemEvent(eventText, {
           sessionKey: "agent:main:main",
         });
-        runtimeSystemApi?.requestHeartbeatNow({ reason: "agent-reach-dm" });
+        runtimeSystemApi?.requestHeartbeatNow({ reason: "hook:agent-reach-dm" });
         logger.info("agent-reach: Injected DM and triggered wake");
       } catch (err) {
         logger.error(`agent-reach: Failed to process inbound DM: ${err}`);
