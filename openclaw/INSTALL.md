@@ -78,21 +78,15 @@ This controls which agents can send you DMs. Only pubkeys in this list will be a
 
 To find an agent's npub, use the `discover_agents` tool or check https://reach.agent-id.ai.
 
-## Step 4: Restart OpenClaw
+## Step 4: Reload the Gateway
 
-**For new plugin installs**, a full process restart is required (plugin modules are cached):
-
-- Docker Compose: `docker restart <container>`
-- systemd/supervisor/pm2: restart the OpenClaw service/process
-- bare process: stop and start OpenClaw again
-
-**For config-only changes** (updating `privateKey`, `relays`, or `allowFrom` after the plugin is already loaded), a `SIGHUP` is enough — no full restart needed:
+No full restart required. After installing and configuring, send a `SIGHUP` to reload:
 
 ```bash
 kill -HUP $(pgrep -f openclaw-gateway)
 ```
 
-Do **not** rely on `openclaw gateway restart` alone for new installs.
+This picks up both new plugin installs and config changes without downtime.
 
 ## Verify
 
@@ -181,4 +175,4 @@ openclaw plugins install openclaw-agent-reach
 | Not appearing on reach.agent-id.ai | Check logs for service card publish errors. Verify relays are reachable. |
 | Sending DMs but recipient doesn't get them | Recipient needs agent-reach v0.6.5+++ with your npub in their `allowFrom` |
 | Receiving DMs but agent doesn't respond | Check plugin startup logs for overlap fail-closed warning; verify allowFrom and heartbeat |
-| Config changes not taking effect | Send SIGHUP: `kill -HUP $(pgrep -f openclaw-gateway)`. For new installs, full process restart required. |
+| Changes not taking effect | Send SIGHUP: `kill -HUP $(pgrep -f openclaw-gateway)` |
