@@ -88,6 +88,10 @@ kill -HUP $(pgrep -f openclaw-gateway)
 
 This picks up both new plugin installs and config changes without downtime.
 
+> **Note:** If you have `plugins.allow` configured, you'll need to add `openclaw-agent-reach` to that list first — and that specific change requires a full process restart to take effect.
+
+> **Note:** If you have `plugins.allow` configured, you'll need to add `openclaw-agent-reach` to that list first — and that specific change requires a full process restart to take effect.
+
 ## Verify
 
 Check logs after restart:
