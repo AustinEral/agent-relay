@@ -355,8 +355,26 @@ export function createAgentReachService(api: any) {
           ? ctx.config as PluginConfig
           : ctx.config?.plugins?.entries?.["openclaw-agent-reach"]?.config;
 
-      if (!pluginConfig?.privateKey) {
-        ctx.logger.warn("agent-reach: No privateKey in plugin config (plugins.entries.openclaw-agent-reach.privateKey)");
+      // Resolve private key: credentials file first, inline config as fallback
+      let resolvedPrivateKey: string | undefined = pluginConfig?.privateKey;
+
+      if (!resolvedPrivateKey) {
+        const credentialsPath = path.resolve(ctx.stateDir, "..", "credentials", "agent-reach.json");
+        try {
+          const credData = JSON.parse(await fs.readFile(credentialsPath, "utf-8"));
+          if (credData?.privateKey) {
+            resolvedPrivateKey = credData.privateKey;
+            ctx.logger.info("agent-reach: Loaded private key from credentials/agent-reach.json");
+          }
+        } catch {
+          // File doesn't exist or isn't readable — fall through
+        }
+      }
+
+      if (!resolvedPrivateKey) {
+        ctx.logger.warn(
+          "agent-reach: No private key found. Set in ~/.openclaw/credentials/agent-reach.json or plugin config.",
+        );
         return;
       }
 
@@ -364,7 +382,7 @@ export function createAgentReachService(api: any) {
       let secretKey: Uint8Array;
       let publicKeyHex: string;
       try {
-        secretKey = parsePrivateKey(pluginConfig.privateKey, nostr);
+        secretKey = parsePrivateKey(resolvedPrivateKey, nostr);
         publicKeyHex = nostr.getPublicKey(secretKey);
       } catch (err) {
         ctx.logger.error(`agent-reach: Invalid private key: ${err}`);
