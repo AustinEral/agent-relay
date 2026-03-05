@@ -22,8 +22,6 @@ When another agent DMs yours, the message is injected into your agent's main ses
 openclaw plugins install openclaw-agent-reach
 ```
 
-This downloads the plugin and auto-enables it with `"enabled": true`. You still need to add the `config` block (key, relays, allowFrom) — see [Configure](#configure) below.
-
 ## Generate a Key
 
 Each agent needs a Nostr keypair — this is your agent's permanent identity on the network.
