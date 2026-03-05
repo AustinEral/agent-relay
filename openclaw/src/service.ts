@@ -180,7 +180,10 @@ async function publishEvent(kind: number, content: string, tags: string[][]) {
 async function publishServiceCard() {
   if (!rt) return;
   const { state, serviceCardId, relays } = rt;
-  const name = state.name ?? "Agent";
+  if (!state.name) {
+    throw new Error("No agent name set. Use update_service_card to set a name before publishing.");
+  }
+  const name = state.name;
   const about = state.about ?? "";
 
   const protocols: Protocol[] = [{ type: "dm", relays: relays.join(",") }];
@@ -493,24 +496,31 @@ export function createAgentReachService(api: any) {
         dmIngressEnabled: overlap.length === 0,
       };
 
-      // Publish service card
-      try {
-        await publishServiceCard();
-        ctx.logger.info(`agent-reach: Published service card (${rt.serviceCardId})`);
-      } catch (err) {
-        ctx.logger.error(`agent-reach: Failed to publish service card: ${err}`);
-      }
-
-      // Start heartbeats (unless paused)
-      if (state.online !== false) {
-        await sendHeartbeat("available");
-        startHeartbeatTimer();
-        ctx.logger.info(
-          `agent-reach: Started (heartbeat every ${state.heartbeatIntervalMs / 1000}s, ` +
-          `${allowFrom.size} allowed agent(s))`,
+      // Publish service card (requires a name)
+      if (!state.name) {
+        ctx.logger.warn(
+          "agent-reach: No agent name set — service card and heartbeats will not publish. " +
+          "Use the update_service_card tool to set a name, then the card will publish automatically.",
         );
       } else {
-        ctx.logger.info("agent-reach: Started (heartbeats paused — offline mode)");
+        try {
+          await publishServiceCard();
+          ctx.logger.info(`agent-reach: Published service card (${rt.serviceCardId})`);
+        } catch (err) {
+          ctx.logger.error(`agent-reach: Failed to publish service card: ${err}`);
+        }
+
+        // Start heartbeats (unless paused)
+        if (state.online !== false) {
+          await sendHeartbeat("available");
+          startHeartbeatTimer();
+          ctx.logger.info(
+            `agent-reach: Started (heartbeat every ${state.heartbeatIntervalMs / 1000}s, ` +
+            `${allowFrom.size} allowed agent(s))`,
+          );
+        } else {
+          ctx.logger.info("agent-reach: Started (heartbeats paused — offline mode)");
+        }
       }
 
       // Start listening for inbound DMs
@@ -712,7 +722,19 @@ export async function updateServiceCard(params: {
 
   // Persist + republish
   await saveState(rt.stateDir, state);
+
+  if (!state.name) {
+    return { success: false, message: "A name is required to publish a service card. Set a name first." };
+  }
+
   await publishServiceCard();
+
+  // If heartbeats weren't running (e.g. no name on startup), start them now
+  if (isOnline && !rt.heartbeatTimer) {
+    await sendHeartbeat("available");
+    startHeartbeatTimer();
+    rt.logger.info("agent-reach: Heartbeats started (name now set)");
+  }
 
   rt.logger.info("agent-reach: Updated and republished service card");
 
