@@ -327,6 +327,7 @@ function stopDmSubscription() {
 
 export function createAgentReachService(api: any) {
   runtimeSystemApi = api?.runtime?.system ?? null;
+  const runtimeConfigApi = api?.runtime?.config ?? null;
 
   return {
     id: "openclaw-agent-reach",
@@ -389,9 +390,38 @@ export function createAgentReachService(api: any) {
         return;
       }
 
+      // Auto-populate config defaults if missing
+      // After `openclaw plugins install`, the entry only has { enabled: true }.
+      // Fill in the config block so users can see and edit real fields.
+      if (runtimeConfigApi?.writeConfigFile && runtimeConfigApi?.loadConfig) {
+        const needsWrite =
+          !pluginConfig?.relays ||
+          !pluginConfig?.allowFrom;
+
+        if (needsWrite) {
+          try {
+            const liveCfg = runtimeConfigApi.loadConfig();
+            const entry = liveCfg.plugins?.entries?.["openclaw-agent-reach"] as any;
+            if (entry) {
+              const existingConfig = entry.config ?? {};
+              const merged = {
+                ...existingConfig,
+                relays: existingConfig.relays ?? DEFAULT_RELAYS,
+                allowFrom: existingConfig.allowFrom ?? [],
+              };
+              entry.config = merged;
+              await runtimeConfigApi.writeConfigFile(liveCfg);
+              ctx.logger.info("agent-reach: Auto-populated config defaults (relays, allowFrom)");
+            }
+          } catch (err) {
+            ctx.logger.warn(`agent-reach: Failed to auto-populate config: ${err}`);
+          }
+        }
+      }
+
       // Resolve config
-      const relays = pluginConfig.relays ?? DEFAULT_RELAYS;
-      const allowFromRaw = pluginConfig.allowFrom ?? [];
+      const relays = pluginConfig?.relays ?? DEFAULT_RELAYS;
+      const allowFromRaw = pluginConfig?.allowFrom ?? [];
 
       // Normalize allowFrom to hex pubkeys
       const allowFrom = new Set<string>();
