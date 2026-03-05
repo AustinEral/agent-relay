@@ -64,7 +64,7 @@ Add to `~/.openclaw/openclaw.json`:
             "wss://nos.lol",
             "wss://relay.nostr.band"
           ],
-          "allowFrom": ["npub1..."]
+          "allowFrom": []
         }
       }
     }
