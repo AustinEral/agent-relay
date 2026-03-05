@@ -396,29 +396,29 @@ export function createAgentReachService(api: any) {
       // Auto-populate config defaults if missing
       // After `openclaw plugins install`, the entry only has { enabled: true }.
       // Fill in the config block so users can see and edit real fields.
+      // Only writes once — checks the live config file, not the startup snapshot.
       if (runtimeConfigApi?.writeConfigFile && runtimeConfigApi?.loadConfig) {
-        const needsWrite =
-          !pluginConfig?.relays ||
-          !pluginConfig?.allowFrom;
+        try {
+          const liveCfg = runtimeConfigApi.loadConfig();
+          const entry = liveCfg.plugins?.entries?.["openclaw-agent-reach"] as any;
+          if (entry) {
+            const existingConfig = entry.config ?? {};
+            const needsRelays = !existingConfig.relays;
+            const needsAllowFrom = !Array.isArray(existingConfig.allowFrom);
 
-        if (needsWrite) {
-          try {
-            const liveCfg = runtimeConfigApi.loadConfig();
-            const entry = liveCfg.plugins?.entries?.["openclaw-agent-reach"] as any;
-            if (entry) {
-              const existingConfig = entry.config ?? {};
+            if (needsRelays || needsAllowFrom) {
               const merged = {
                 ...existingConfig,
-                relays: existingConfig.relays ?? DEFAULT_RELAYS,
-                allowFrom: existingConfig.allowFrom ?? [],
+                ...(needsRelays ? { relays: DEFAULT_RELAYS } : {}),
+                ...(needsAllowFrom ? { allowFrom: [] } : {}),
               };
               entry.config = merged;
               await runtimeConfigApi.writeConfigFile(liveCfg);
               ctx.logger.info("agent-reach: Auto-populated config defaults (relays, allowFrom)");
             }
-          } catch (err) {
-            ctx.logger.warn(`agent-reach: Failed to auto-populate config: ${err}`);
           }
+        } catch (err) {
+          ctx.logger.warn(`agent-reach: Failed to auto-populate config: ${err}`);
         }
       }
 
