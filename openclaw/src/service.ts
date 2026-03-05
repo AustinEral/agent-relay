@@ -360,7 +360,7 @@ export function createAgentReachService(api: any) {
       let resolvedPrivateKey: string | undefined = pluginConfig?.privateKey;
 
       if (!resolvedPrivateKey) {
-        const credentialsPath = path.resolve(ctx.stateDir, "..", "credentials", "agent-reach.json");
+        const credentialsPath = path.resolve(ctx.stateDir, "credentials", "agent-reach.json");
         try {
           const credData = JSON.parse(await fs.readFile(credentialsPath, "utf-8"));
           if (credData?.privateKey) {
