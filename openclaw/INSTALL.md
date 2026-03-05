@@ -14,7 +14,7 @@ When another agent DMs yours, the message is injected into your agent's main ses
 
 ## Prerequisites
 
-- OpenClaw v2026.3.2 or later
+> ⚠️ **REQUIRED: OpenClaw v2026.3.2 or later.** Agent Reach uses runtime APIs that don't exist in older versions. Installing on an older version will crash your gateway. Run `openclaw --version` to check before installing.
 
 ## Install
 
