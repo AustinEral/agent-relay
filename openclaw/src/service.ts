@@ -250,9 +250,11 @@ function stopHeartbeatTimer() {
 
 // ── Inbound DM handling ────────────────────────────────────────────────
 
+const DM_RESUBSCRIBE_INTERVAL_MS = 5 * 60 * 1000; // Re-subscribe every 5 minutes to handle dropped connections
+
 function startDmSubscription() {
   if (!rt) return;
-  const { pool, nostr, secretKey, publicKeyHex, relays, allowFrom, logger, dmIngressEnabled } = rt;
+  const { nostr, secretKey, publicKeyHex, relays, allowFrom, logger, dmIngressEnabled } = rt;
 
   if (!dmIngressEnabled) {
     logger.warn("agent-reach: Inbound DMs disabled due to allowlist overlap safety check");
@@ -264,62 +266,92 @@ function startDmSubscription() {
     return;
   }
 
-  logger.info(`agent-reach: Listening for DMs from ${allowFrom.size} allowed agent(s)`);
+  // Track seen event IDs to deduplicate across resubscriptions
+  const seenEvents = new Set<string>();
+  const MAX_SEEN = 500;
 
-  // Subscribe to NIP-04 DMs addressed to us
-  // Use `since` to only get DMs from after service start — avoids historical flood
-  const filter = {
-    kinds: [KIND_DM],
-    "#p": [publicKeyHex],
-    authors: Array.from(allowFrom),
-    since: Math.floor(Date.now() / 1000) - 60, // 1 min buffer for clock skew
+  const subscribe = () => {
+    if (!rt) return;
+
+    // Close existing subscription if any
+    if (rt.dmSub) {
+      try { rt.dmSub.close?.(); } catch { /* ignore */ }
+      rt.dmSub = null;
+    }
+
+    // Create fresh pool to avoid stale WebSocket connections
+    try { rt.pool.close(relays); } catch { /* ignore */ }
+    rt.pool = new nostr.SimplePool();
+
+    logger.info(`agent-reach: Listening for DMs from ${allowFrom.size} allowed agent(s)`);
+
+    const filter = {
+      kinds: [KIND_DM],
+      "#p": [publicKeyHex],
+      authors: Array.from(allowFrom),
+      since: Math.floor(Date.now() / 1000) - 60,
+    };
+
+    rt.dmSub = rt.pool.subscribeMany(relays, filter, {
+      onevent: async (event: any) => {
+        try {
+          // Deduplicate across resubscriptions
+          if (seenEvents.has(event.id)) return;
+          seenEvents.add(event.id);
+          if (seenEvents.size > MAX_SEEN) {
+            const first = seenEvents.values().next().value;
+            if (first) seenEvents.delete(first);
+          }
+
+          if (!allowFrom.has(event.pubkey)) {
+            logger.debug(`agent-reach: Dropped DM from non-allowed sender ${event.pubkey.slice(0, 8)}`);
+            return;
+          }
+
+          const plaintext = await nostr.nip04.decrypt(secretKey, event.pubkey, event.content);
+
+          let senderLabel: string;
+          try {
+            senderLabel = nostr.nip19.npubEncode(event.pubkey);
+          } catch {
+            senderLabel = event.pubkey.slice(0, 12);
+          }
+
+          logger.info(`agent-reach: DM from ${senderLabel}: ${plaintext.slice(0, 80)}...`);
+
+          const eventText = `[Agent DM from ${senderLabel}]\n${plaintext}`;
+          runtimeSystemApi?.enqueueSystemEvent(eventText, {
+            sessionKey: "agent:main:main",
+          });
+          runtimeSystemApi?.requestHeartbeatNow({ reason: "hook:agent-reach-dm" });
+          logger.info("agent-reach: Injected DM and triggered wake");
+        } catch (err) {
+          logger.error(`agent-reach: Failed to process inbound DM: ${err}`);
+        }
+      },
+      oneose: () => {
+        logger.debug("agent-reach: DM subscription EOSE (caught up)");
+      },
+    });
   };
 
-  // Note: pass filter as single object, not wrapped in array.
-  // Some nostr-tools versions double-wrap [filter] → [[filter]] causing
-  // "bad req: provided filter is not an object" from relays.
-  rt.dmSub = pool.subscribeMany(relays, filter, {
-    onevent: async (event: any) => {
-      try {
-        // Double-check sender is allowed (belt + suspenders)
-        if (!allowFrom.has(event.pubkey)) {
-          logger.debug(`agent-reach: Dropped DM from non-allowed sender ${event.pubkey.slice(0, 8)}`);
-          return;
-        }
+  // Initial subscription
+  subscribe();
 
-        // Decrypt NIP-04
-        const plaintext = await nostr.nip04.decrypt(secretKey, event.pubkey, event.content);
-
-        // Resolve sender name from known agents (best effort)
-        let senderLabel: string;
-        try {
-          senderLabel = nostr.nip19.npubEncode(event.pubkey);
-        } catch {
-          senderLabel = event.pubkey.slice(0, 12);
-        }
-
-        logger.info(`agent-reach: DM from ${senderLabel}: ${plaintext.slice(0, 80)}...`);
-
-        // Inject as system event for the agent to process
-        const eventText = `[Agent DM from ${senderLabel}]\n${plaintext}`;
-
-        // Inject DM into session and trigger immediate wake via official plugin runtime API.
-        runtimeSystemApi?.enqueueSystemEvent(eventText, {
-          sessionKey: "agent:main:main",
-        });
-        runtimeSystemApi?.requestHeartbeatNow({ reason: "hook:agent-reach-dm" });
-        logger.info("agent-reach: Injected DM and triggered wake");
-      } catch (err) {
-        logger.error(`agent-reach: Failed to process inbound DM: ${err}`);
-      }
-    },
-    oneose: () => {
-      logger.debug("agent-reach: DM subscription EOSE (caught up)");
-    },
-  });
+  // Periodically resubscribe to handle silently dropped relay connections
+  rt.dmResubTimer = setInterval(() => {
+    if (!rt) return;
+    logger.debug("agent-reach: Resubscribing to DM relays (periodic refresh)");
+    subscribe();
+  }, DM_RESUBSCRIBE_INTERVAL_MS);
+  rt.dmResubTimer.unref?.();
 }
 
 function stopDmSubscription() {
+  if (rt?.dmResubTimer) {
+    clearInterval(rt.dmResubTimer);
+    rt.dmResubTimer = null;
+  }
   if (rt?.dmSub) {
     rt.dmSub.close?.();
     rt.dmSub = null;
@@ -493,6 +525,7 @@ export function createAgentReachService(api: any) {
         state,
         heartbeatTimer: null,
         dmSub: null,
+        dmResubTimer: null,
         dmIngressEnabled: overlap.length === 0,
       };
 
